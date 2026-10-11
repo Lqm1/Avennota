@@ -1,0 +1,69 @@
+{
+  "name": "avennota",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p . && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@tanstack/db": "^0.13.0",
+    "@tanstack/pacer": "^0.23.1",
+    "@tanstack/react-hotkeys": "^0.13.0",
+    "@tanstack/react-pacer": "^0.24.1",
+    "@tanstack/react-router": "^1.170.42",
+    "@tanstack/react-store": "^0.11.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.8.2",
+    "@tauri-apps/plugin-fs": "^2.7.0",
+    "@wavesurfer/react": "^1.0.12",
+    "cn": "^0.4.0",
+    "comlink": "^4.4.2",
+    "encoding-japanese": "^2.4.0",
+    "lucide-react": "^1.55.0",
+    "pitchy": "^4.1.0",
+    "react": "^19.1.0",
+    "react-aria-components": "^1.22.1",
+    "react-dom": "^19.1.0",
+    "react-resizable-panels": "^4.14.4",
+    "wavesurfer.js": "^8.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/intent": "^0.5.5",
+    "@tanstack/router-plugin": "^1.168.43",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/wicg-file-system-access": "^2023.10.7",
+    "@vitejs/plugin-react": "^6.0.2",
+    "fake-indexeddb": "^6.2.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.3",
+    "ultracite": "7.12.4",
+    "vite": "^8.0.16",
+    "vitest": "^5.0.3"
+  },
+  "packageManager": "bun@1.4.3",
+  "intent": {
+    "skills": [
+      "@tanstack/*",
+      "ultracite"
+    ]
+  }
+}

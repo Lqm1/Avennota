@@ -1,0 +1,235 @@
+import { createCollection, indexedDBCollectionOptions } from "@tanstack/db";
+import { z } from "zod";
+
+import { recoveryRecordSchema } from "../../features/editor/recovery-data";
+import { openLocalDatabase } from "../storage";
+import type { FilePlatform, RecoveryStore, VoiceFolder } from "./types";
+import { FileAccessError, toFileAccessError } from "./types";
+
+/** フォルダとFile System Access APIのハンドルの対応。ハンドルは編集ロジックへ渡さない。 */
+const handles = new WeakMap<VoiceFolder, FileSystemDirectoryHandle>();
+export const browserHandle = (
+  folder: VoiceFolder
+): FileSystemDirectoryHandle | undefined => handles.get(folder);
+
+const readFile = async (
+  directory: FileSystemDirectoryHandle,
+  name: string
+): Promise<File> => {
+  const fileHandle = await directory.getFileHandle(name);
+  return await fileHandle.getFile();
+};
+
+/** 利用者が選んだフォルダを直接扱う。音源をブラウザ内へ複製しない。 */
+export const createBrowserFolder = (
+  directory: FileSystemDirectoryHandle
+): VoiceFolder => {
+  const folder: VoiceFolder = {
+    readRange: async (name, offset, length) => {
+      const file = await readFile(directory, name);
+      return new Uint8Array(
+        await file.slice(offset, offset + length).arrayBuffer()
+      );
+    },
+    remove: async (name) => {
+      await directory.removeEntry(name);
+    },
+    async ensureWritable() {
+      const descriptor = { mode: "readwrite" } as const;
+      if ((await directory.queryPermission(descriptor)) === "granted") {
+        return true;
+      }
+      return (await directory.requestPermission(descriptor)) === "granted";
+    },
+    async listFiles() {
+      try {
+        const names: string[] = [];
+        for await (const entry of directory.values()) {
+          if (entry.kind === "file") {
+            names.push(entry.name);
+          }
+        }
+        return names;
+      } catch (error) {
+        throw toFileAccessError(error, "read", "フォルダの読み込み");
+      }
+    },
+    name: directory.name,
+    async read(name) {
+      try {
+        const file = await readFile(directory, name);
+        return new Uint8Array(await file.arrayBuffer());
+      } catch (error) {
+        throw toFileAccessError(error, "read", `${name}の読み込み`);
+      }
+    },
+    async stat(name) {
+      try {
+        const file = await readFile(directory, name);
+        return { modifiedAt: file.lastModified, size: file.size };
+      } catch (error) {
+        const converted = toFileAccessError(error, "read", `${name}の確認`);
+        if (converted.kind === "not-found") {
+          return null;
+        }
+        throw converted;
+      }
+    },
+    async write(name, bytes) {
+      let writable: FileSystemWritableFileStream | null = null;
+      try {
+        const fileHandle = await directory.getFileHandle(name, {
+          create: true,
+        });
+        writable = await fileHandle.createWritable();
+        await writable.write(bytes);
+        // closeが解決した時点でブラウザが一時ファイルを元ファイルへ反映する。
+        await writable.close();
+      } catch (error) {
+        if (writable) {
+          try {
+            await writable.abort();
+          } catch {
+            // 中断できなくても、元の失敗を報告する。
+          }
+        }
+        throw toFileAccessError(error, "write", `${name}の書き込み`);
+      }
+    },
+  };
+  handles.set(folder, directory);
+  return folder;
+};
+
+const handleOf = (folder: VoiceFolder): FileSystemDirectoryHandle => {
+  const handle = handles.get(folder);
+  if (!handle) {
+    throw new FileAccessError(
+      "unsupported",
+      "ブラウザで選んだフォルダではありません。"
+    );
+  }
+  return handle;
+};
+
+const storedRecordSchema = recoveryRecordSchema.extend({
+  handle: z.custom<FileSystemDirectoryHandle>(
+    (handle) =>
+      typeof FileSystemDirectoryHandle !== "undefined" &&
+      handle instanceof FileSystemDirectoryHandle
+  ),
+});
+type StoredRecord = z.output<typeof storedRecordSchema>;
+
+const openRecovery = async () => {
+  const collection = createCollection(
+    indexedDBCollectionOptions({
+      id: "browser-recovery",
+      db: await openLocalDatabase(),
+      name: "recovery",
+      schema: storedRecordSchema,
+      getKey: (record) => record.id,
+      gcTime: Infinity,
+    })
+  );
+  try {
+    await collection.preload();
+    return collection;
+  } catch (error) {
+    await collection.cleanup();
+    throw error;
+  }
+};
+let recovery: ReturnType<typeof openRecovery> | undefined;
+const recoveryCollection = async () => {
+  recovery ??= openRecovery();
+  try {
+    return await recovery;
+  } catch (error) {
+    recovery = undefined;
+    throw error;
+  }
+};
+
+const loadRecords = async (): Promise<StoredRecord[]> => {
+  const collection = await recoveryCollection();
+  return z.array(storedRecordSchema).parse([...collection.values()]);
+};
+/** 復元データはIndexedDBへ保存する。フォルダのハンドルも一緒に保存し、再起動後のアクセス再開に使う。 */
+const createBrowserRecoveryStore = (): RecoveryStore => ({
+  async idFor(folder) {
+    const handle = handleOf(folder);
+    const stored = await loadRecords();
+    const matches = await Promise.all(
+      stored.map(async (value) => await value.handle.isSameEntry(handle))
+    );
+    const index = matches.indexOf(true);
+    return stored[index]?.id ?? crypto.randomUUID();
+  },
+  async list() {
+    return await loadRecords();
+  },
+  async remove(id) {
+    const collection = await recoveryCollection();
+    if (collection.has(id)) {
+      await collection.delete(id).when("settled");
+    }
+  },
+  async reopen(id) {
+    const collection = await recoveryCollection();
+    const value = collection.get(id);
+    if (value === undefined) {
+      return null;
+    }
+    const stored = storedRecordSchema.parse(value);
+    const folder = createBrowserFolder(stored.handle);
+    try {
+      return (await folder.ensureWritable()) ? folder : null;
+    } catch {
+      return null;
+    }
+  },
+  async save(folder, record) {
+    const stored: StoredRecord = { ...record, handle: handleOf(folder) };
+    try {
+      const collection = await recoveryCollection();
+      const transaction = collection.has(record.id)
+        ? collection.update(record.id, (row) => {
+            Object.assign(row, stored);
+          })
+        : collection.insert(stored);
+      await transaction.when("settled");
+    } catch (error) {
+      throw new FileAccessError(
+        "write",
+        `復元データを保存できません: ${String(error)}`,
+        { cause: error }
+      );
+    }
+  },
+});
+
+export const createBrowserPlatform = (): FilePlatform => ({
+  kind: "browser",
+  async pickFolder() {
+    if (typeof window.showDirectoryPicker !== "function") {
+      throw new FileAccessError(
+        "unsupported",
+        "このブラウザはフォルダを直接編集するFile System Access APIに対応していません。デスクトップ版のChromeまたはEdgeを使ってください。"
+      );
+    }
+    try {
+      const handle = await window.showDirectoryPicker({
+        id: "avennota-voicebank",
+        mode: "readwrite",
+      });
+      return createBrowserFolder(handle);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return null;
+      }
+      throw toFileAccessError(error, "read", "フォルダの選択");
+    }
+  },
+  recovery: createBrowserRecoveryStore(),
+});

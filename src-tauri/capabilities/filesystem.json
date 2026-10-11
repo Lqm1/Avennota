@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "filesystem",
+  "description": "メインウィンドウのファイル操作権限。音源フォルダへのアクセスはdialogで選択したフォルダ（実行時スコープ）に限る。",
+  "windows": ["main"],
+  "permissions": [
+    "fs:allow-open",
+    "fs:allow-read",
+    "fs:allow-seek",
+    "fs:allow-read-dir",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-stat",
+    "fs:allow-exists",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    "fs:default",
+    "fs:allow-appdata-write-recursive"
+  ]
+}
