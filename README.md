@@ -216,4 +216,4 @@ bun run tauri build
 
 ## ライセンス
 
-ライセンスは策定中です（オープンソースとして公開予定）。
+GPL-3.0-or-later
