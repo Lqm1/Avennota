@@ -19,7 +19,7 @@ const recording = (bpm: number, offset = 1): AlignedRecording => {
 };
 
 describe("収録BPMの推定", () => {
-  it.each([50, 80, 90, 100, 110, 120, 130, 140, 160, 200])(
+  it.each([50, 80, 90, 100, 110, 120, 125, 130, 140, 160, 200])(
     "境界誤差と録音開始位置が異なっても%d BPMを推定する",
     (bpm) => {
       expect(
@@ -42,7 +42,7 @@ describe("収録BPMの推定", () => {
     ).toStrictEqual({ kind: "unavailable", reason: "agreement" });
   });
 
-  it("範囲を制限せず最寄りの10 BPMへ丸める", () => {
+  it("範囲を制限せず最寄りの5 BPMへ丸める", () => {
     expect(estimateRecordingTempo([recording(122)])).toStrictEqual({
       kind: "estimated",
       bpm: 120,
@@ -51,6 +51,11 @@ describe("収録BPMの推定", () => {
     expect(estimateRecordingTempo([recording(162)])).toStrictEqual({
       kind: "estimated",
       bpm: 160,
+      recordings: 1,
+    });
+    expect(estimateRecordingTempo([recording(123)])).toStrictEqual({
+      kind: "estimated",
+      bpm: 125,
       recordings: 1,
     });
   });

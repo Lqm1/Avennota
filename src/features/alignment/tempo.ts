@@ -67,7 +67,7 @@ export const estimateRecordingTempo = (
     return { kind: "unavailable", reason: "boundaries" };
   }
   const beat = median(beats);
-  const bpm = Math.round(60 / beat / 10) * 10;
+  const bpm = Math.round(60 / beat / 5) * 5;
   const agreement = beats.filter(
     (value) => Math.abs(value - beat) / beat < 0.04
   ).length;
