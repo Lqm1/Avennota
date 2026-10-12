@@ -49,4 +49,4 @@ UTAU音源の原音設定エディター。Web版とWindows・macOS・Linux版�
 
 ## 作業範囲
 
-このプロジェクトは`D:\Desktop\Projects\Avennota`で、独立したGitリポジトリ。親ディレクトリ`D:\Desktop\Projects`も別のGitリポジトリなので、Git操作はこのリポジトリの中で行う。公開先は未決定。
+このプロジェクトは`D:\Desktop\Projects\Avennota`で、独立したGitリポジトリ。親ディレクトリ`D:\Desktop\Projects`も別のGitリポジトリなので、Git操作はこのリポジトリの中で行う。公開先は`docs/SPEC.md`の「対象環境と配布」を参照する。

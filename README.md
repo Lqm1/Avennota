@@ -84,7 +84,7 @@ macOS用のappアーカイブも配布します。DMGの代わりにアーカイ
 
 - **対応ブラウザ**: PC版 Google Chrome / Microsoft Edge（現行バージョン）
 - ブラウザで公開ページを開き、「フォルダを開く」からPC内の音源フォルダを選ぶだけで、ブラウザ上から安全に直接ファイルを読み書きできます（File System Access API利用）。
-- _※Web版の正式公開URLは準備中です_
+- **[Web版を開く](https://avennota.lami.zip/)**
 
 ### 基本的な編集手順
 
