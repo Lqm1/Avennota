@@ -39,7 +39,7 @@ describe("収録BPMの推定", () => {
     ).toStrictEqual({ kind: "estimated", bpm: 100, recordings: 3 });
     expect(
       estimateRecordingTempo([recording(80), recording(140)])
-    ).toStrictEqual({ kind: "unavailable" });
+    ).toStrictEqual({ kind: "unavailable", reason: "agreement" });
   });
 
   it("範囲を制限せず最寄りの10 BPMへ丸める", () => {
@@ -62,6 +62,7 @@ describe("収録BPMの推定", () => {
     expect(selectTempoRecordings([short])).toHaveLength(0);
     expect(estimateRecordingTempo([short])).toStrictEqual({
       kind: "unavailable",
+      reason: "boundaries",
     });
   });
 });

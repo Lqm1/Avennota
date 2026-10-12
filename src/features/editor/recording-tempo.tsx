@@ -23,6 +23,14 @@ type EstimationState =
   | TempoEstimate
   | { kind: "error"; message: string };
 
+const unavailableMessages = {
+  recordings:
+    "BPM推定には、休符・促音で区切られずに5モーラ以上続く録音が必要です。対象WAVと発音列を確認してください。",
+  boundaries:
+    "BPM推定に使える発音間隔を十分に読み取れませんでした。発音列を確認してください。",
+  agreement: "録音ごとの推定BPMが揃わなかったため、自動入力していません。",
+};
+
 export const RecordingTempoField = ({
   folder,
   wavs,
@@ -74,7 +82,10 @@ export const RecordingTempoField = ({
         });
         controller.signal.throwIfAborted();
         const samples = selectTempoRecordings(recordings);
-        let result: TempoEstimate = { kind: "unavailable" };
+        let result: TempoEstimate = {
+          kind: "unavailable",
+          reason: "recordings",
+        };
         if (samples.length > 0) {
           const acousticModel =
             model ?? (await loadJapaneseModel(controller.signal));
@@ -153,7 +164,7 @@ export const RecordingTempoField = ({
           ? `推定値: ${state.bpm} BPM（${state.recordings}録音）。手入力で変更できます。`
           : null}
         {state.kind === "unavailable"
-          ? "収録BPMを推定できません。ガイドBGMのBPMを入力してください（初期値120）。"
+          ? `${unavailableMessages[state.reason]} 収録BPMは手入力できます（初期値120）。`
           : null}
         {state.kind === "error"
           ? `BPM推定に失敗しました: ${state.message} 手入力で指定できます。`

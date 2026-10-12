@@ -3,7 +3,7 @@ import type { RecordingTranscript } from "./recordings";
 
 export type TempoEstimate =
   | { kind: "estimated"; bpm: number; recordings: number }
-  | { kind: "unavailable" };
+  | { kind: "unavailable"; reason: "recordings" | "boundaries" | "agreement" };
 
 const median = (values: number[]): number => {
   const sorted = values.toSorted((a, b) => a - b);
@@ -64,7 +64,7 @@ export const estimateRecordingTempo = (
     }
   }
   if (beats.length === 0) {
-    return { kind: "unavailable" };
+    return { kind: "unavailable", reason: "boundaries" };
   }
   const beat = median(beats);
   const bpm = Math.round(60 / beat / 10) * 10;
@@ -72,7 +72,7 @@ export const estimateRecordingTempo = (
     (value) => Math.abs(value - beat) / beat < 0.04
   ).length;
   if (bpm <= 0 || !Number.isFinite(bpm) || agreement / beats.length < 0.75) {
-    return { kind: "unavailable" };
+    return { kind: "unavailable", reason: "agreement" };
   }
   return { kind: "estimated", bpm, recordings: agreement };
 };

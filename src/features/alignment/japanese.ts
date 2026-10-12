@@ -85,6 +85,8 @@ for (const [kana, consonant, vowel] of [
   ["しぇ", "sh", "e"],
   ["じぇ", "j", "e"],
   ["ちぇ", "ch", "e"],
+  ["すぃ", "s", "i"],
+  ["ずぃ", "z", "i"],
   ["てぃ", "t", "i"],
   ["とぅ", "t", "u"],
   ["でぃ", "d", "i"],
@@ -119,6 +121,20 @@ for (const [kana, consonant, vowel] of [
   ["りぇ", "ry", "e"],
 ] satisfies [string, string, string][]) {
   add(kana, `${consonant} ${vowel}`);
+}
+
+for (const [base, consonant] of [
+  ["く", "k"],
+  ["ぐ", "g"],
+] satisfies [string, string][]) {
+  for (const [small, vowel] of [
+    ["ぁ", "a"],
+    ["ぃ", "i"],
+    ["ぇ", "e"],
+    ["ぉ", "o"],
+  ] satisfies [string, string][]) {
+    add(`${base}${small}`, `${consonant} w ${vowel}`);
+  }
 }
 
 const KATAKANA = /[ァ-ヶ]/gu;
