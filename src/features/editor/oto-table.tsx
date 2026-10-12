@@ -74,11 +74,14 @@ const cursorDirection = (event: KeyboardEvent): number => {
   }
   if (
     event.key === "ArrowLeft" ||
-    (event.ctrlKey && ["h", "b"].includes(event.key))
+    ((event.ctrlKey || event.metaKey) && ["h", "b"].includes(event.key))
   ) {
     return -1;
   }
-  if (event.key === "ArrowRight" || (event.ctrlKey && event.key === "l")) {
+  if (
+    event.key === "ArrowRight" ||
+    ((event.ctrlKey || event.metaKey) && event.key === "l")
+  ) {
     return 1;
   }
   return 0;

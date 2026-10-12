@@ -79,24 +79,24 @@ export const TableMenu = ({
         }}
       >
         <MenuItem id="copy" className={itemClass}>
-          コピー（Ctrl+C）
+          コピー（Ctrl/Cmd+C）
         </MenuItem>
         <MenuItem id="cut" className={itemClass}>
-          切り取り（Ctrl+X）
+          切り取り（Ctrl/Cmd+X）
         </MenuItem>
         <MenuItem id="paste" className={itemClass}>
-          貼り付け（Ctrl+V）
+          貼り付け（Ctrl/Cmd+V）
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="bulk" className={itemClass}>
-          値一括変更（Ctrl+M）
+          値一括変更（Ctrl/Cmd+M）
         </MenuItem>
         <MenuItem id="alias" className={itemClass}>
           エイリアス一括変更
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="play" className={itemClass}>
-          全体再生・停止（Ctrl+P）
+          全体再生・停止（Ctrl/Cmd+P）
         </MenuItem>
         <MenuItem id="timing" className={itemClass}>
           発声タイミング試聴（F8）

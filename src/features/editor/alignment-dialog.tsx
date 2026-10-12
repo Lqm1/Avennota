@@ -500,7 +500,7 @@ const ResultView = ({
       <Footer>
         <Button onPress={onBack}>設定に戻る</Button>
         <span className="ml-auto text-[11px] text-slate-400">
-          反映後も「元に戻す」（Ctrl+Z）で一括して取り消せます
+          反映後も「元に戻す」（Ctrl/Cmd+Z）で一括して取り消せます
         </span>
         <Button onPress={onClose}>破棄して閉じる</Button>
         <Button tone="primary" isDisabled={unchanged} onPress={onApply}>

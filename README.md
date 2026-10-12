@@ -6,13 +6,13 @@
 
 **Webでもデスクトップでも快適に動く、現代的なUTAU原音設定エディター**
 
-[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Windows-brightgreen)](#対象環境)
+[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-brightgreen)](#対象環境)
 
 </div>
 
 Avennota（アヴェンノータ）は、UTAU音源の原音設定ファイル（`oto.ini`）を快適かつ安全に編集するためのオープンソースエディターです。
 
-長年多くの音源制作者に愛用されてきた定番ツール **`setParam` をモデルに設計**されており、慣れ親しんだキー操作や作業の流れをそのまま引き継いで使用できます。インストール不要ですぐに使える **Webブラウザ版** と、オフラインでも軽快に動く **Windowsデスクトップ版** の両方を提供しています。
+長年多くの音源制作者に愛用されてきた定番ツール **`setParam` をモデルに設計**されており、慣れ親しんだキー操作や作業の流れをそのまま引き継いで使用できます。インストール不要ですぐに使える **Webブラウザ版** と、オフラインでも軽快に動く **デスクトップ版** の両方を提供しています。
 
 ![メイン編集画面](docs/images/editor.png)
 
@@ -21,7 +21,7 @@ Avennota（アヴェンノータ）は、UTAU音源の原音設定ファイル�
 - [ユーザー向けガイド（音源制作者の方へ）](#ユーザー向けガイド音源制作者の方へ)
   - [特徴](#特徴)
   - [ダウンロードと使い方](#ダウンロードと使い方)
-    - [Windowsデスクトップ版（推奨）](#windowsデスクトップ版推奨)
+    - [デスクトップ版（Windows・macOS・Linux）](#デスクトップ版windowsmacoslinux)
     - [Webブラウザ版](#webブラウザ版)
   - [基本的な編集手順](#基本的な編集手順)
   - [主な機能と画面紹介](#主な機能と画面紹介)
@@ -41,7 +41,7 @@ Avennota（アヴェンノータ）は、UTAU音源の原音設定ファイル�
 - 🎹 **setParam を踏襲した操作感**
   - F1〜F5キーによるマーカー配置や、先行発声と左ブランクの連動移動など、`setParam` で培った感覚をそのまま活かして作業できます。
 - 🌐 **Web・デスクトップの両対応**
-  - PCにソフトを入れずブラウザ上でサッと作業したいときはWeb版、日常的にオフラインでじっくり作業したいときはWindows版と、好みの環境を選べます。
+  - PCにソフトを入れずブラウザ上でサッと作業したいときはWeb版、日常的にオフラインでじっくり作業したいときはデスクトップ版と、好みの環境を選べます。
 - 📊 **見やすく高精度な音声解析パネル**
   - 波形表示だけでなく、スペクトログラム（周波数分布）、音量パワー、F0（基本周波数・ピッチ線）を自由に組み合わせて並べて確認できます。
 - 🤖 **原音設定の自動推定（SHIRO）**
@@ -53,18 +53,30 @@ Avennota（アヴェンノータ）は、UTAU音源の原音設定ファイル�
 
 ### ダウンロードと使い方
 
-#### Windowsデスクトップ版（推奨）
+#### デスクトップ版（Windows・macOS・Linux）
 
 PCにインストールして使いたい方や、ネット環境を気にせず作業したい方におすすめです。
 
-1. **[GitHub Releases](../../releases)** ページにアクセスします。
-2. 最新リリースの「Assets」から、利用形態に合わせて以下のいずれかをダウンロードしてください：
-   - **インストーラー版 (`Avennota-Setup-x.x.x.exe`)**: 通常はこちらを推奨します。スタートメニュー等に追加されます。
-   - **ポータブル版 (`Avennota-portable.exe`)**: 解凍やインストール不要で、USBメモリや任意のフォルダから単体ですぐに起動できます。
-3. ダウンロードしたファイルを実行すると起動します。
+1. **[GitHub Releases](https://github.com/Lqm1/Avennota/releases/latest)** を開きます。
+2. 「Assets」から、お使いのOSに合ったファイルをダウンロードします。ファイル名にバージョンとCPUの種類が含まれます。
+3. 以下の手順でインストールまたは起動します。
+
+| 環境 | ダウンロードするファイル | インストール・起動方法 |
+| --- | --- | --- |
+| Windows 11（x64） | `*_x64-setup.exe` | 実行し、インストーラーの案内に従います。インストール後はスタートメニューから起動します。 |
+| Windows 11（ARM64） | `*_arm64-setup.exe` | 実行し、インストーラーの案内に従います。 |
+| Windows 10（32bit・x86） | `*_x86-setup.exe` | 実行し、インストーラーの案内に従います。 |
+| Windows（ポータブル） | `*_windows_x64-portable.exe`・`*_windows_arm64-portable.exe`・`*_windows_x86-portable.exe` | CPUに合うファイルを任意のフォルダに置き、そのまま実行します。 |
+| macOS 14以降（Apple Silicon・Intel） | `*_universal.dmg` | DMGを開き、Avennotaを「アプリケーション」へドラッグして起動します。 |
+| Linux（x64・Debian／Ubuntu） | `*_amd64.deb` | ダウンロード先で`sudo apt install ./ファイル名.deb`を実行し、アプリ一覧から起動します。 |
+| Linux（ARM64・Debian／Ubuntu） | `*_arm64.deb` | `sudo apt install ./ファイル名.deb`でインストールします。 |
+| Linux（32bit・Debian 12） | `*_i386.deb` | `sudo apt install ./ファイル名.deb`でインストールします。 |
+| Linux（AppImage） | `*_amd64.AppImage`・`*_aarch64.AppImage`・`*_i386.AppImage` | CPUに合うファイルに`chmod +x ファイル名.AppImage`で実行権限を付け、`./ファイル名.AppImage`で起動します。 |
+
+macOS用のappアーカイブも配布します。DMGの代わりにアーカイブを展開し、Avennota.appを「アプリケーション」へ移動して使えます。
 
 > [!NOTE]
-> Windows版の動作には「Microsoft Edge WebView2 ランタイム」（Windows 10/11には標準で導入済み）が必要です。未導入のPCで起動した場合は、画面の案内に従って導入してください。
+> Windows版はMicrosoft Edge WebView2 Runtimeを使います。インストーラーは不足時にRuntimeをダウンロードして導入します。ポータブル版は既存Runtimeを使い、不足時に導入方法を案内します。macOS版はシステムのWKWebView、Linux版はWebKitGTK 4.1を使います。
 
 #### Webブラウザ版
 
@@ -139,7 +151,7 @@ F8キーを押すと、設定したテンポのメトロノーム音に合わせ
 
 ### 主なショートカット早見表（setParam互換）
 
-主なキー操作は `setParam` の配置に合わせてあるため、これまでの習慣を崩さずに操作できます。
+主なキー操作は `setParam` の配置に合わせてあります。macOSでは表のCtrlをCommandに置き換えて操作できます。やり直しはCmd + Shift + Zでも使えます。Fキーは必要に応じてFnを併用してください。
 
 | 分類 | 操作 | キー | 動作 |
 | :-- | :-- | :-- | :-- |
@@ -194,7 +206,7 @@ Avennotaは、TypeScript + React + Vite + Tauri 2 を採用したオープンソ
 
 - **Node.js** (LTS推奨)
 - **Bun** (パッケージ管理およびスクリプト実行用)
-- **Rust** (Windowsネイティブ版のビルドに必要)
+- **Rust** (ネイティブ版のビルドに必要)
 
 ```powershell
 # 依存パッケージのインストール
@@ -203,7 +215,7 @@ bun install --frozen-lockfile
 # Web版の開発サーバー起動（http://localhost:1420）
 bun run dev
 
-# Windowsネイティブ版の開発実行
+# ネイティブ版の開発実行
 bun run tauri dev
 ```
 
@@ -222,9 +234,11 @@ bun run test
 # Web版のビルド (dist/ に静的ファイルを出力)
 bun run build
 
-# Windowsネイティブ版のビルド (NSISインストーラーおよびポータブルexe)
+# 実行OS向けネイティブ版のビルド
 bun run tauri build
 ```
+
+リリースは[Release Please](https://github.com/googleapis/release-please)と[Tauri公式GitHub Action](https://github.com/tauri-apps/tauri-action)で作成します。`master`へのConventional Commitからバージョン・CHANGELOGを更新するリリースPRを作り、マージ後に3つのOSの配布物がそろうとGitHub Releasesへ自動公開します。運用と初回設定は[開発ツール](docs/TOOLING.md#自動リリース)を参照してください。
 
 ### 設計資料・ドキュメント
 

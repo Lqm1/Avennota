@@ -51,7 +51,7 @@ export const Toolbar = ({
         label="元に戻す"
         priority="high"
         onPress={undo}
-        shortcut="Ctrl+Z"
+        shortcut="Ctrl/Cmd+Z"
       />
       <ToolButton
         icon={Redo2}
@@ -59,7 +59,7 @@ export const Toolbar = ({
         label="やり直す"
         priority="high"
         onPress={redo}
-        shortcut="Ctrl+Y"
+        shortcut="Ctrl/Cmd+Y"
       />
       {unlistedCount > 0 ? (
         <>

@@ -31,8 +31,7 @@ export default defineConfig({
     },
   },
   build: {
-    // デスクトップのChrome・EdgeとWebView2を対象にする。
-    target: "es2023",
+    target: "es2022",
   },
   worker: {
     format: "es",

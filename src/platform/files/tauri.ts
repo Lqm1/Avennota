@@ -132,10 +132,10 @@ const pathOf = (folder: VoiceFolder): string => {
 const RECOVERY_DIR = "recovery";
 const appData = { baseDir: BaseDirectory.AppData };
 
-const hashId = async (text: string): Promise<string> => {
+export const nativeRecoveryId = async (path: string): Promise<string> => {
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(text.toLowerCase())
+    new TextEncoder().encode(path)
   );
   return [...new Uint8Array(digest)]
     .slice(0, 16)
@@ -155,7 +155,7 @@ const readRecord = async (fileName: string): Promise<StoredRecord> => {
 
 /** 復元データはアプリデータ領域のrecoveryフォルダへJSONで保存する。 */
 const createNativeRecoveryStore = (): RecoveryStore => ({
-  idFor: async (folder) => await hashId(pathOf(folder)),
+  idFor: async (folder) => await nativeRecoveryId(pathOf(folder)),
   async list() {
     if (!(await exists(RECOVERY_DIR, appData))) {
       return [];

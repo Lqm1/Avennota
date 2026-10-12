@@ -82,7 +82,7 @@ export const FileMenu = () => {
       entries={[
         action(
           "open-folder",
-          "音源フォルダを開く（Ctrl+O）",
+          "音源フォルダを開く（Ctrl/Cmd+O）",
           () => {
             void openFolder();
           },
@@ -98,7 +98,7 @@ export const FileMenu = () => {
         action("open-ini", "原音パラメータの読み込み", panel("fileOpen"), busy),
         action(
           "save",
-          "上書き保存（Ctrl+S）",
+          "上書き保存（Ctrl/Cmd+S）",
           () => {
             void save();
           },
@@ -106,7 +106,7 @@ export const FileMenu = () => {
         ),
         action(
           "save-as",
-          "名前を付けて保存（Ctrl+Shift+S）",
+          "名前を付けて保存（Ctrl/Cmd+Shift+S）",
           panel("fileSave"),
           busy
         ),
@@ -205,7 +205,11 @@ export const ViewMenu = () => {
                   });
                 }
               ),
-              action("opacity", "画面を透過する", panel("opacity")),
+              action(
+                "opacity",
+                "画面を透過する（Windowsのみ）",
+                panel("opacity")
+              ),
             ]
           : []),
       ]}
@@ -231,7 +235,7 @@ export const OptionsMenu = () => {
             ),
             check(
               "offset-positions",
-              "他パラメータは動かさず、左ブランクのみを動かす。(Ctrl+Shift+l)",
+              "他パラメータは動かさず、左ブランクのみを動かす。(Ctrl/Cmd+Shift+l)",
               settings.offsetMode === "positions",
               () => {
                 apply({ offsetMode: "positions" });

@@ -94,9 +94,6 @@ export const editorCommand = (
   event: KeyInput,
   table: boolean
 ): EditorCommand | null => {
-  if (event.metaKey) {
-    return null;
-  }
   if (event.key === "F8") {
     return "timing";
   }
@@ -115,7 +112,7 @@ export const editorCommand = (
   if (event.key === "F7") {
     return event.altKey ? "previousWav" : "previous";
   }
-  if (event.ctrlKey) {
+  if (event.ctrlKey || event.metaKey) {
     if (event.shiftKey && event.key.toLowerCase() === "l" && !table) {
       return "offsetPositions";
     }
@@ -138,7 +135,8 @@ export const tableCommand = (
   event: KeyInput,
   editing: boolean
 ): TableCommand | null => {
-  if (event.ctrlKey) {
+  const control = event.ctrlKey || event.metaKey;
+  if (control) {
     if (!editing && ["h", "b", "l"].includes(event.key)) {
       return { kind: "move", row: 0, column: event.key === "l" ? 1 : -1 };
     }
@@ -150,7 +148,7 @@ export const tableCommand = (
       return { kind: "clipboard", action };
     }
   }
-  const rowKeys: Record<string, number> = event.ctrlKey
+  const rowKeys: Record<string, number> = control
     ? { j: 1, k: -1, u: -1 }
     : { ArrowDown: 1, ArrowUp: -1, Enter: 1 };
   const row = rowKeys[event.key];
@@ -167,7 +165,7 @@ export const tableCommand = (
   if (editing && event.key === "Escape") {
     return { kind: "cancel" };
   }
-  if (!editing && !event.ctrlKey && !event.metaKey) {
+  if (!editing && !control) {
     const column = columnKeys[event.key];
     if (column !== undefined) {
       return { kind: "move", row: 0, column };

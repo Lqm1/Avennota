@@ -216,7 +216,7 @@ export const SearchBox = ({
     <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-slate-500" />
     <Input
       className={cn(inputClass, "pl-7")}
-      placeholder="検索（Ctrl+F）"
+      placeholder="検索（Ctrl/Cmd+F）"
       ref={inputRef}
     />
   </AriaSearchField>

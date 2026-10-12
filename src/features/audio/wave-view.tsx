@@ -1023,7 +1023,7 @@ export const WaveView = (props: WaveViewProps) => {
         }
         event.preventDefault();
         const direction = event.deltaY > 0 ? 1 : -1;
-        if (event.ctrlKey && event.shiftKey) {
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
           const rect = instance.getWrapper().getBoundingClientRect();
           const panels = latestLayout.current;
           const index = panels.findIndex(

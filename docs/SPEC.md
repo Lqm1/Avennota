@@ -6,10 +6,13 @@ Avennotaの初版はUTAU音源の原音設定エディター。音源フォル�
 
 ## 対象環境と配布
 
-- 検証基準はWindows 11 x64と現行のデスクトップChrome・Edge。
+- ネイティブ版の対象はWindows 11（x64・ARM64）・Windows 10（x86）、macOS 14以降（Apple Silicon・Intel）、Linux（x64・ARM64・x86）。Linux x86の配布基準はDebian 12。Web版は各OSの現行のデスクトップChrome・Edgeを対象とする。
 - Web版はHTTPSで公開し、File System Access APIでユーザーが選んだ音源フォルダを直接編集する。APIがない環境では非対応を案内する。Tauri APIを起動時に呼ばない。
 - フォルダ経由のiniアクセスが制限された場合は、音源フォルダ直下の既存iniを個別に選ぶ。選択したファイルを読み込み・上書き保存・履歴・復元に使い、一覧に出ないファイルを新規と判断しない。
 - Windows版はNSISインストーラーとポータブルexeを配布する。どちらもフロントエンドを含み、WebView2 Runtime導入後はオフラインで編集できる。
+- macOS版はapp・DMG、Linux版はdeb・AppImageを配布形式とする。macOSはシステムのWKWebView、LinuxはWebKitGTK 4.1を使う。
+- 編集・音声処理・保存・復元は3つのOSで共有する。透過率の設定はWindows版だけに適用する。
+- 配布先は`Lqm1/Avennota`のGitHub Releases。Release Pleaseでバージョン・変更内容をまとめるPRを作り、マージ後に全OSの配布ビルドが成功したリリースを自動公開する。
 - インストーラーのWebView2導入はTauri既定のdownloadBootstrapper。Runtimeがなければネット経由で導入する。固定Runtimeやオフライン導入用インストーラーは同梱しない。
 - ポータブルexeは既存のWebView2 Runtimeを使い、Runtimeもその導入プログラムも同梱しない。WebView生成前に不足を検出し、インストーラー版かMicrosoft公式のRuntime導入を案内する。
 
@@ -73,7 +76,7 @@ Avennotaの初版はUTAU音源の原音設定エディター。音源フォル�
 ## 未決定事項
 
 - フォルダ経由のiniアクセスが制限されるブラウザでの、新規ini作成方法。既存iniは個別選択で開く。
-- 公開ライセンス、リポジトリとリリース先、コード署名、CI。
+- 公開ライセンス、コード署名・macOSの公証。
 - 正式アイコン（現在は`public/favicon.svg`の仮アイコン）とアプリID（仮に`io.github.lqm1.avennota`）。
-- 最低ブラウザ／Runtimeバージョン、Windows ARM64と他OSの対応。
+- 最低ブラウザ／Runtimeバージョン、Linux x64・ARM64の対応ディストリビューション。
 - 処理速度と最大音源サイズの保証値。

@@ -185,7 +185,7 @@ export const SettingsForm = ({
               className="grid grid-cols-[5rem_1fr_1fr] items-end gap-2"
               key={PLAY_POINTS[index]}
             >
-              <span className="pb-2 text-xs">{`Ctrl+F${index + 1}`}</span>
+              <span className="pb-2 text-xs">{`Ctrl/Cmd+F${index + 1}`}</span>
               <SelectField
                 label="再生開始位置"
                 value={range.start}

@@ -1,3 +1,4 @@
+import "../platform/polyfills";
 import { Wave } from "@shiro-rs/wasm/bundler";
 import { expose } from "comlink";
 

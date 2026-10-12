@@ -24,7 +24,7 @@ export const BulkDialog = () => {
     threshold: 0,
   });
   return (
-    <EditorDialog title="選択セルの値を一括変更（Ctrl+M）" onClose={close}>
+    <EditorDialog title="選択セルの値を一括変更（Ctrl/Cmd+M）" onClose={close}>
       <div className="flex flex-col gap-3">
         <SelectField
           label="変更方法"

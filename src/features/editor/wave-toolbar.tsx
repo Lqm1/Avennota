@@ -38,7 +38,7 @@ export const WaveToolbar = () => {
         label="範囲を再生"
         priority="high"
         onPress={() => waveControls()?.playRange()}
-        shortcut="Ctrl+Space"
+        shortcut="Ctrl/Cmd+Space"
       />
       <ToolButton
         icon={Square}

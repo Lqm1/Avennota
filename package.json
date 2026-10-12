@@ -28,6 +28,7 @@
     "@wavesurfer/react": "^1.0.12",
     "cn": "^0.4.0",
     "comlink": "^4.4.2",
+    "core-js": "^3.50.0",
     "encoding-japanese": "^2.4.0",
     "lucide-react": "^1.55.0",
     "pitchy": "^4.1.0",

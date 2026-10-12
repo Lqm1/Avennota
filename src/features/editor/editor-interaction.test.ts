@@ -40,6 +40,7 @@ const key = (
   value: string,
   modifiers: Partial<{
     ctrlKey: boolean;
+    metaKey: boolean;
     altKey: boolean;
     shiftKey: boolean;
   }> = {}
@@ -53,6 +54,30 @@ const key = (
 });
 
 describe("編集画面の入力操作", () => {
+  it("Commandで範囲再生・行編集を行う", () => {
+    expect(editorCommand(key(" ", { metaKey: true }), false)).toBe("range");
+    expect(
+      editorCommand(key("L", { metaKey: true, shiftKey: true }), false)
+    ).toBe("offsetPositions");
+    expect(editorCommand(key("i", { metaKey: true }), true)).toBe("duplicate");
+    expect(
+      editorCommand(key("d", { metaKey: true, altKey: true }), true)
+    ).toBeNull();
+  });
+
+  it("Commandで表のコピー・移動を行い、通常の文字入力と混同しない", () => {
+    expect(tableCommand(key("c", { metaKey: true }), true)).toStrictEqual({
+      kind: "clipboard",
+      action: "copy",
+    });
+    expect(tableCommand(key("j", { metaKey: true }), true)).toStrictEqual({
+      kind: "move",
+      row: 1,
+      column: 0,
+    });
+    expect(tableCommand(key("s", { metaKey: true }), false)).toBeNull();
+  });
+
   it("CtrlShiftLは左ブランク単独移動を選択し、外部合成のキーを転用しない", () => {
     expect(
       editorCommand(key("L", { ctrlKey: true, shiftKey: true }), false)

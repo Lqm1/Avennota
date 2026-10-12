@@ -144,7 +144,7 @@ export const Inspector = ({
     </ul>
     <div className="flex flex-wrap gap-2">
       <Button
-        aria-label="行を複製（Ctrl+I）"
+        aria-label="行を複製（Ctrl/Cmd+I）"
         onPress={() => {
           duplicateLine(row.id);
         }}
@@ -152,11 +152,11 @@ export const Inspector = ({
         <CopyPlus className="size-3.5" />
         行を複製
         <kbd className="hidden font-mono text-[10px] opacity-60 @sm:inline">
-          Ctrl+I
+          Ctrl/Cmd+I
         </kbd>
       </Button>
       <Button
-        aria-label="行を削除（Ctrl+D）"
+        aria-label="行を削除（Ctrl/Cmd+D）"
         tone="danger"
         onPress={() => {
           deleteLine(row.id);
@@ -165,7 +165,7 @@ export const Inspector = ({
         <Trash className="size-3.5" />
         行を削除
         <kbd className="hidden font-mono text-[10px] opacity-70 @sm:inline">
-          Ctrl+D
+          Ctrl/Cmd+D
         </kbd>
       </Button>
     </div>

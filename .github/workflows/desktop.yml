@@ -1,0 +1,132 @@
+name: Desktop builds
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            arch: arm64
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            arch: x86
+          - os: macos-15
+            target: universal-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: i686-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: src-tauri
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux' && matrix.target != 'i686-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - name: Build Windows portable executable
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@v1
+        with:
+          tauriScript: bun run tauri
+          args: --target ${{ matrix.target }} --no-bundle -- --locked
+      - name: Package Windows portable executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item -LiteralPath "src-tauri/target/$env:BUILD_TARGET/release/avennota.exe" -Destination "release-assets/Avennota_${version}_windows_$env:BUILD_ARCH-portable.exe"
+      - name: Build desktop bundles
+        if: matrix.target != 'i686-unknown-linux-gnu'
+        uses: tauri-apps/tauri-action@v1
+        with:
+          tauriScript: bun run tauri
+          args: --target ${{ matrix.target }} -- --locked
+      - name: Build Linux 32-bit bundles
+        if: matrix.target == 'i686-unknown-linux-gnu'
+        run: |
+          bun run build
+          cli_version=$(node -p "require('./node_modules/@tauri-apps/cli/package.json').version")
+          docker run --rm -i --platform linux/386 \
+            --env CI=true \
+            --env TAURI_CLI_VERSION="$cli_version" \
+            --volume "$PWD:/workspace" --workdir /workspace \
+            debian:bookworm bash -s <<'BUILD'
+          set -euo pipefail
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential curl ca-certificates pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf file xdg-utils
+
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh
+          sh /tmp/rustup.sh -y --profile minimal --default-host i686-unknown-linux-gnu
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install tauri-cli --version "$TAURI_CLI_VERSION" --locked
+
+          cargo tauri build --target i686-unknown-linux-gnu \
+            --config '{"build":{"beforeBuildCommand":""}}' -- --locked
+          BUILD
+      - name: Archive macOS app with executable permissions
+        if: runner.os == 'macOS'
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+          mkdir -p release-assets
+          tar -czf "release-assets/Avennota_${version}_macos_universal.app.tar.gz" -C src-tauri/target/universal-apple-darwin/release/bundle/macos Avennota.app
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            src-tauri/target/**/bundle/nsis/*.exe
+            src-tauri/target/**/bundle/dmg/*.dmg
+            src-tauri/target/**/bundle/deb/*.deb
+            src-tauri/target/**/bundle/appimage/*.AppImage
+            release-assets/*.app.tar.gz
+            release-assets/*-portable.exe
+          if-no-files-found: error

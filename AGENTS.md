@@ -14,7 +14,7 @@ Use the repository’s installed Intent. If it is unavailable, report the missin
 
 # Avennota
 
-UTAU音源の原音設定エディター。Web版とWindows版（Tauri）で同じ編集処理を使う。
+UTAU音源の原音設定エディター。Web版とWindows・macOS・Linux版（Tauri）で同じ編集処理を使う。
 
 ## 資料
 

@@ -81,7 +81,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
       title={
         mode === "open"
           ? "原音パラメータの読み込み"
-          : "名前を付けて保存（Ctrl+Shift+S）"
+          : "名前を付けて保存（Ctrl/Cmd+Shift+S）"
       }
       onClose={close}
     >

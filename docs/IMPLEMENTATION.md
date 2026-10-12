@@ -88,6 +88,17 @@ React AriaのTableは行データが変わると全行のコレクションを�
 - 復元データは編集が止まって1秒後に記録する。ネイティブ版はアプリデータ領域の`recovery/*.json`。元ファイルのSHA-256を記録し、復元時に変わっていれば確認する。
 - Webの復元データはIndexedDBコレクションの`importData`で置き換える。フォルダ参照を更新用draftに通さず、IndexedDBのstructured cloneで保存する。
 - ネイティブ版はpersisted-scopeプラグインで前回選んだフォルダのスコープを保持する。
+- ネイティブ版の復元IDは絶対パスのSHA-256から作り、大文字・小文字を保持する。大小文字を区別するファイルシステムの音源を混同しない。
+
+## デスクトップのビルド
+
+- 共通設定は`src-tauri/tauri.conf.json`。配布形式はTauriが自動で読み込む`tauri.windows.conf.json`・`tauri.macos.conf.json`・`tauri.linux.conf.json`へ分ける。
+- Windowsはx64・ARM64・x86のNSIS・ポータブルexe、macOSはUniversal版のapp・DMG、Linuxはx64・ARM64・x86のdeb・AppImage。各CPU向けのツールチェーンでビルドする。
+- macOSの最低バージョンは14。フロントエンドの構文はES2022を対象とし、`core-js`で`findLast`・`toReversed`・`toSorted`・`Promise.withResolvers`だけを補う。画面とSHIROのWorkerの両方で読み込む。
+- `.github/workflows/desktop.yml`で7つのビルドを行い、ターゲット別のartifactへ生成物を保存する。Windowsはx64ランナーから3つのCPU向けにビルドし、Linux ARM64はUbuntu 22.04のARM64ランナーを使う。
+- Linux x86はホストでフロントエンドをビルドした後、ワークフロー内でDebian 12の32bitコンテナーを起動する。RustとWebKitGTKなどをコンテナーに入れる。Tauri CLIはJS版と同じバージョンを使う。
+- `release-please-config.json`はアプリ全体を1つのリリースとして扱い、Release Pleaseの`extra-files`でJS・Tauri・Rust・Cargo.lockのバージョンをそろえる。
+- `.github/workflows/release.yml`はリリースPRのマージ後にタグのコミットを`desktop.yml`へ渡し、全配布物のビルド・アップロード完了後に下書きリリースを公開する。
 
 ## アイコン
 

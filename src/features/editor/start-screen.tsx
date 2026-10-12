@@ -63,7 +63,7 @@ export const StartScreen = () => {
             }}
             tone="primary"
           >
-            音源フォルダを開く（Ctrl+O）
+            音源フォルダを開く（Ctrl/Cmd+O）
           </Button>
         ) : (
           <p className="rounded border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-200">

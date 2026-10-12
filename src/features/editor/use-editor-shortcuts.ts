@@ -99,7 +99,7 @@ const handleTableGlobal = (
   }
   const action = event.key.toLowerCase();
   if (
-    !event.ctrlKey ||
+    !(event.ctrlKey || event.metaKey) ||
     event.altKey ||
     !["f", "g", "n", "z", "y"].includes(action)
   ) {
@@ -133,15 +133,31 @@ export const useEditorShortcuts = ({
     handlers.current = { focusSearch, findNext };
   });
   useHotkeys([
-    ...bind(["Control+F"], focusSearch),
-    ...bind(["Control+G", "Control+N"], () => {
+    ...bind(["Control+F", "Meta+F"], focusSearch),
+    ...bind(["Control+G", "Control+N", "Meta+G", "Meta+N"], () => {
       findNext(1);
     }),
-    ...bind(["Control+Shift+G", "Control+Shift+N"], () => {
-      findNext(-1);
-    }),
-    ...bind(["Control+Z"], undo),
-    ...bind(["Control+Y", "Control+Shift+Z"], redo),
+    ...bind(
+      [
+        "Control+Shift+G",
+        "Control+Shift+N",
+        { key: "G", meta: true, shift: true },
+        { key: "N", meta: true, shift: true },
+      ],
+      () => {
+        findNext(-1);
+      }
+    ),
+    ...bind(["Control+Z", "Meta+Z"], undo),
+    ...bind(
+      [
+        "Control+Y",
+        "Control+Shift+Z",
+        "Meta+Y",
+        { key: "Z", meta: true, shift: true },
+      ],
+      redo
+    ),
   ]);
   useEffect(() => {
     let held: string | null = null;
@@ -167,7 +183,7 @@ export const useEditorShortcuts = ({
         return;
       }
       const { key } = event;
-      const control = event.ctrlKey;
+      const control = event.ctrlKey || event.metaKey;
       if (handleTableGlobal(event, handlers.current, table)) {
         return;
       }
@@ -274,21 +290,21 @@ export const useEditorShortcuts = ({
 export const useGlobalShortcuts = (): void => {
   useHotkeys([
     ...bind(
-      ["Control+S"],
+      ["Control+S", "Meta+S"],
       () => {
         void save();
       },
       true
     ),
     ...bind(
-      ["Control+O"],
+      ["Control+O", "Meta+O"],
       () => {
         showEditorPanel("fileOpen");
       },
       true
     ),
     ...bind(
-      ["Control+Shift+S"],
+      ["Control+Shift+S", { key: "S", meta: true, shift: true }],
       () => {
         showEditorPanel("fileSave");
       },

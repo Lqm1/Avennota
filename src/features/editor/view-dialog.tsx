@@ -16,7 +16,7 @@ export const ViewDialog = ({ mode }: { mode: "bpm" | "opacity" }) => {
   const [opacity, setOpacity] = useState(settings.advanced.opacity);
   return (
     <EditorDialog
-      title={mode === "bpm" ? "時間軸のBPM" : "画面の透過"}
+      title={mode === "bpm" ? "時間軸のBPM" : "画面の透過（Windowsのみ）"}
       onClose={close}
     >
       <div className="flex flex-col gap-3">
