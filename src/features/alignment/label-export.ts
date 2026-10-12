@@ -1,5 +1,8 @@
 import type { DocumentBytes } from "../../platform/files/documents";
-import { applyFileChanges } from "../../platform/files/transaction";
+import {
+  applyFileChanges,
+  readIfExists,
+} from "../../platform/files/transaction";
 import type { VoiceFolder } from "../../platform/files/types";
 import { fileStem } from "../oto/oto-set";
 import type { AlignmentResult, PhoneInterval } from "./types";
@@ -53,7 +56,7 @@ export const saveLabels = async (
   const changes = await Promise.all(
     createLabelExports(recordings).map(async ({ name, bytes }) => ({
       name,
-      before: (await folder.stat(name)) ? await folder.read(name) : null,
+      before: await readIfExists(folder, name),
       after: bytes,
     }))
   );

@@ -20,14 +20,9 @@ import {
   Input,
 } from "react-aria-components";
 
-import {
-  fileStem,
-  formatNumber,
-  PARAM_LABELS,
-  PARAM_KEYS,
-} from "../oto/oto-set";
+import { fileStem, isOtoLine, PARAM_LABELS, PARAM_KEYS } from "../oto/oto-set";
 import type { ParamKey } from "../oto/oto-set";
-import { editCell, acceptsCellNumber } from "./bulk-edit";
+import { acceptsCellNumber, cellText, editCell, paramText } from "./bulk-edit";
 import { clipboardAction } from "./cell-clipboard";
 import {
   CELL_COLUMNS,
@@ -37,10 +32,10 @@ import {
   selectedCells,
   useCellSelection,
 } from "./cell-selection";
-import type { CellColumn, CellPoint } from "./cell-selection";
+import type { CellPoint } from "./cell-selection";
 import { tableCommand } from "./keyboard-commands";
 import { ParamSwatch } from "./param-swatch";
-import type { OtoRow, ParsedOtoRow, RowStatusTone } from "./rows";
+import type { OtoRow, RowStatusTone } from "./rows";
 import { settingsStore } from "./settings";
 import { select, editorStore, transformOtoSet } from "./store";
 import { TableMenu } from "./table-menu";
@@ -132,29 +127,8 @@ const pointAt = (target: EventTarget | null): CellPoint | null => {
     ? { column, lineId }
     : null;
 };
-const cellNumber = (row: OtoRow, key: ParamKey): string => {
-  if (row.kind !== "oto") {
-    return "";
-  }
-  const value = row.line.parsed.oto[key];
-  const token = row.line.parsed.oto.paramTexts[PARAM_KEYS.indexOf(key)];
-  if (token === "" || token === "-") {
-    return token;
-  }
-  return Number.isFinite(value) ? formatNumber(value) : "";
-};
-const editText = (
-  row: ParsedOtoRow,
-  column: Exclude<CellColumn, "wav">
-): string => {
-  if (column === "alias") {
-    return row.line.parsed.oto.alias;
-  }
-  if (column === "comment") {
-    return row.line.comment ?? "";
-  }
-  return cellNumber(row, column);
-};
+const cellNumber = (row: OtoRow, key: ParamKey): string =>
+  row.kind === "oto" ? paramText(row.line.parsed.oto, key) : "";
 const useTableKeyboard = (
   ref: React.RefObject<HTMLTableElement | null>,
   handler: (event: KeyboardEvent) => void
@@ -280,7 +254,7 @@ const OtoTableView = ({ rows, selectedId }: OtoTableProps) => {
       focusRequested.current = true;
       choose({ lineId: row.id, column }, extend);
       if (!extend && row.kind === "oto" && column !== "wav") {
-        const text = editText(row, column);
+        const text = cellText(row.line, column);
         cursorRequested.current = columnDelta < 0 ? "end" : 0;
         setEditing({ cell: { lineId: row.id, column }, text });
       }
@@ -315,7 +289,7 @@ const OtoTableView = ({ rows, selectedId }: OtoTableProps) => {
       changeEditText(point, initial);
       return;
     }
-    setEditing({ cell: point, text: editText(row, point.column) });
+    setEditing({ cell: point, text: cellText(row.line, point.column) });
   };
   useTableKeyboard(tableRef, (event) => {
     if (event.isComposing || active === null) {
@@ -372,17 +346,12 @@ const OtoTableView = ({ rows, selectedId }: OtoTableProps) => {
             )
           : undefined;
       const { column } = currentEdit.cell;
-      if (target?.parsed.kind === "oto" && column !== "wav") {
-        let text = target.comment ?? "";
-        if (column === "alias") {
-          text = target.parsed.oto.alias;
-        } else if (column !== "comment") {
-          text =
-            target.parsed.oto.paramTexts[PARAM_KEYS.indexOf(column)] ??
-            formatNumber(target.parsed.oto[column]);
-        }
+      if (target !== undefined && isOtoLine(target) && column !== "wav") {
         cursorRequested.current = 0;
-        setEditing({ cell: { lineId: targetId, column }, text });
+        setEditing({
+          cell: { lineId: targetId, column },
+          text: cellText(target, column),
+        });
       } else {
         setEditing(null);
         focusRequested.current = true;

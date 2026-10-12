@@ -8,7 +8,13 @@ import type {
   UnparsedOtoLine,
   OtoSet,
 } from "../oto/oto-set";
-import { fileStem, isOtoLine, isUnparsedLine } from "../oto/oto-set";
+import {
+  aliasCounts as countAliases,
+  effectiveAlias,
+  fileStem,
+  isOtoLine,
+  isUnparsedLine,
+} from "../oto/oto-set";
 
 export type RowStatusTone = "error" | "warning" | "info";
 
@@ -74,8 +80,7 @@ const buildRow = (
   } else if (!wavs.has(wavKey)) {
     statuses.push({ text: "WAVがありません", tone: "warning" });
   }
-  const effectiveAlias = oto.alias || fileStem(oto.wav);
-  if ((aliasCounts.get(effectiveAlias) ?? 0) > 1) {
+  if ((aliasCounts.get(effectiveAlias(oto)) ?? 0) > 1) {
     statuses.push({ text: "エイリアスが重複", tone: "info" });
   }
   const duration = durations.get(wavKey);
@@ -105,8 +110,7 @@ const cachedRow = (
   if (line.parsed.kind === "oto") {
     const { oto } = line.parsed;
     const wavKey = oto.wav.toLowerCase();
-    const duplicated =
-      (aliasCounts.get(oto.alias || fileStem(oto.wav)) ?? 0) > 1;
+    const duplicated = (aliasCounts.get(effectiveAlias(oto)) ?? 0) > 1;
     key += `|${wavs.has(wavKey)}|${durations.get(wavKey) ?? ""}|${duplicated}`;
   }
   const cached = rowCache.get(line);
@@ -123,13 +127,7 @@ export const buildRows = (
   wavs: Map<string, string>,
   durations: Durations
 ): OtoRow[] => {
-  const aliasCounts = new Map<string, number>();
-  for (const line of otoSet.lines) {
-    if (line.parsed.kind === "oto") {
-      const alias = line.parsed.oto.alias || fileStem(line.parsed.oto.wav);
-      aliasCounts.set(alias, (aliasCounts.get(alias) ?? 0) + 1);
-    }
-  }
+  const aliasCounts = countAliases(otoSet);
   const rows: OtoRow[] = [];
   for (const [index, line] of otoSet.lines.entries()) {
     if (!isOtoLine(line) && !isUnparsedLine(line)) {

@@ -14,7 +14,10 @@ export const bytesEqual = (
   a === null || b === null
     ? a === b
     : a.length === b.length && a.every((value, i) => value === b[i]);
-const readCurrent = async (folder: VoiceFolder, name: string) =>
+export const readIfExists = async (
+  folder: VoiceFolder,
+  name: string
+): Promise<Uint8Array<ArrayBuffer> | null> =>
   (await folder.stat(name)) ? await folder.read(name) : null;
 const verifyPlan = async (folder: VoiceFolder, changes: FileChange[]) => {
   for (const change of changes) {
@@ -22,7 +25,7 @@ const verifyPlan = async (folder: VoiceFolder, changes: FileChange[]) => {
     if (!(await target.ensureWritable())) {
       throw new Error(`${target.name}への書き込みが許可されていません。`);
     }
-    if (!bytesEqual(await readCurrent(target, change.name), change.before)) {
+    if (!bytesEqual(await readIfExists(target, change.name), change.before)) {
       throw new Error(
         `${change.name}が変更されています。再度操作してください。`
       );
@@ -33,7 +36,7 @@ const verifyPlan = async (folder: VoiceFolder, changes: FileChange[]) => {
   }
 };
 const restoreChange = async (target: VoiceFolder, change: FileChange) => {
-  if (bytesEqual(await readCurrent(target, change.name), change.before)) {
+  if (bytesEqual(await readIfExists(target, change.name), change.before)) {
     return;
   }
   if (change.before === null) {
@@ -47,7 +50,7 @@ const restoreChange = async (target: VoiceFolder, change: FileChange) => {
   } else {
     await target.write(change.name, change.before);
   }
-  if (!bytesEqual(await readCurrent(target, change.name), change.before)) {
+  if (!bytesEqual(await readIfExists(target, change.name), change.before)) {
     throw new Error("復帰結果が一致しません。");
   }
 };
@@ -93,7 +96,7 @@ export const applyFileChanges = async (
       await (change.after === null
         ? target.remove?.(change.name)
         : target.write(change.name, change.after));
-      if (!bytesEqual(await readCurrent(target, change.name), change.after)) {
+      if (!bytesEqual(await readIfExists(target, change.name), change.after)) {
         throw new Error(`${change.name}の書き込みを確認できません。`);
       }
     }

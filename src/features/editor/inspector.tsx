@@ -10,12 +10,7 @@ import {
 import type { VoiceFolder } from "../../platform/files";
 import { useDuration } from "../audio/wav-cache";
 import { MARKER_KEYS, toggleCutoffSign } from "../oto/geometry";
-import {
-  fileStem,
-  PARAM_KEYS,
-  PARAM_LABELS,
-  replaceLine,
-} from "../oto/oto-set";
+import { fileStem, PARAM_KEYS, PARAM_LABELS } from "../oto/oto-set";
 import { editCell } from "./bulk-edit";
 import { statusToneClass } from "./oto-table";
 import { ParamSwatch } from "./param-swatch";
@@ -23,7 +18,7 @@ import type { OtoRow, ParsedOtoRow } from "./rows";
 import { settingsStore } from "./settings";
 import {
   addLine,
-  deleteLine,
+  deleteLineKeepingWav,
   duplicateLine,
   updateAlias,
   updateLineText,
@@ -103,11 +98,13 @@ const OtoFields = ({
         label="コメント"
         value={line.comment ?? ""}
         onCommit={(comment) => {
-          transformOtoSet((set) =>
-            replaceLine(set, line.id, (current) => ({
-              ...current,
-              comment: comment.replaceAll(/\r?\n/gu, " "),
-            }))
+          transformOtoSet((source) =>
+            editCell(
+              source,
+              { lineId: line.id, column: "comment" },
+              comment,
+              false
+            )
           );
         }}
       />
@@ -159,7 +156,7 @@ export const Inspector = ({
         aria-label="行を削除（Ctrl/Cmd+D）"
         tone="danger"
         onPress={() => {
-          deleteLine(row.id);
+          deleteLineKeepingWav(row.id);
         }}
       >
         <Trash className="size-3.5" />

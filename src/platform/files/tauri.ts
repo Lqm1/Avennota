@@ -21,7 +21,7 @@ import { z } from "zod";
 
 import { recoveryRecordSchema } from "../../features/editor/recovery-data";
 import type { FilePlatform, RecoveryStore, VoiceFolder } from "./types";
-import { FileAccessError, toFileAccessError } from "./types";
+import { errorText, FileAccessError, toFileAccessError } from "./types";
 
 /** フォルダと絶対パスの対応。絶対パスは編集ロジックへ渡さない。 */
 const paths = new WeakMap<VoiceFolder, string>();
@@ -197,7 +197,7 @@ const createNativeRecoveryStore = (): RecoveryStore => ({
     } catch (error) {
       throw new FileAccessError(
         "write",
-        `復元データを保存できません: ${String(error)}`,
+        `復元データを保存できません: ${errorText(error)}`,
         { cause: error }
       );
     }

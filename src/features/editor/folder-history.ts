@@ -93,13 +93,10 @@ export const reopenBookmark = async (
   if (!isDirectoryHandle(handle)) {
     return null;
   }
-  const descriptor = { mode: "readwrite" } as const;
-  if (
-    (await handle.queryPermission(descriptor)) !== "granted" &&
-    (await handle.requestPermission(descriptor)) !== "granted"
-  ) {
+  const { createBrowserFolder, requestReadWrite } =
+    await import("../../platform/files/browser");
+  if (!(await requestReadWrite(handle))) {
     return null;
   }
-  const { createBrowserFolder } = await import("../../platform/files/browser");
   return createBrowserFolder(handle, collection.get(entry.id)?.iniFiles);
 };

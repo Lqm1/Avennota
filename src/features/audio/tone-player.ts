@@ -1,28 +1,16 @@
-import { notify } from "../editor/store";
-import { stopTiming } from "./timing-player";
+import { errorText, notify } from "../editor/store";
+import { AudioPlayback } from "./audio-playback";
+import { timingPlayback } from "./timing-player";
 import { waveControls } from "./wave-controls";
 
-let context: AudioContext | null = null;
-let source: AudioBufferSourceNode | null = null;
-let generation = 0;
-
-export const stopTone = (): void => {
-  generation += 1;
-  source?.stop();
-  source = null;
-};
+export const tonePlayback = new AudioPlayback();
 
 export const playTone = async (frequency: number): Promise<void> => {
+  const token = tonePlayback.begin();
+  timingPlayback.stop();
+  waveControls()?.stop();
   try {
-    stopTone();
-    const token = generation;
-    stopTiming();
-    waveControls()?.stop();
-    context ??= new AudioContext();
-    await context.resume();
-    if (generation !== token) {
-      return;
-    }
+    const context = await tonePlayback.audioContext();
     const buffer = context.createBuffer(
       1,
       context.sampleRate,
@@ -60,22 +48,10 @@ export const playTone = async (frequency: number): Promise<void> => {
     for (let i = 0; i < data.length; i += 1) {
       data[i] = (((data[i] ?? 0) / Math.max(1, peak)) * 4000) / 32_768;
     }
-    const player = context.createBufferSource();
-    player.buffer = buffer;
-    player.connect(context.destination);
-    player.addEventListener(
-      "ended",
-      () => {
-        player.disconnect();
-        if (source === player) {
-          source = null;
-        }
-      },
-      { once: true }
-    );
-    source = player;
-    player.start();
+    tonePlayback.start(token, buffer);
   } catch (error) {
-    notify("error", `音高を試聴できません: ${String(error)}`);
+    notify("error", `音高を試聴できません: ${errorText(error)}`);
+  } finally {
+    tonePlayback.finish(token);
   }
 };

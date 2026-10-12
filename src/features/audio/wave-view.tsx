@@ -54,12 +54,12 @@ import {
   panelResizeBounds,
   resizePanelPair,
 } from "./audio-panel-layout";
-import { isFilePlaying, playFileRange, stopFilePlayback } from "./file-player";
+import { filePlayback, playFileRange } from "./file-player";
 import { PanelHeightGrip } from "./panel-height-grip";
 import { middlePlayRange, nearestPlayRange, pointTime } from "./play-ranges";
 import { spectrumColorMap } from "./spectrum-colors";
 import { useSpectrumData } from "./spectrum-data";
-import { stopTiming } from "./timing-player";
+import { timingPlayback } from "./timing-player";
 import { loadWavBlob, setDuration, invalidateWavBlob } from "./wav-cache";
 import { registerWaveControls } from "./wave-controls";
 import { WaveMenu } from "./wave-menu";
@@ -489,18 +489,11 @@ export const WaveView = (props: WaveViewProps) => {
         Math.max(ms - segment.current.offsetMs, 0),
         (wavesurfer?.getDuration() ?? durationMs / 1000) * 1000
       ) / 1000;
-    const end = cutoffEnd(shown, durationMs);
+    const markers = toPositions(shown, durationMs);
     const ranges: Record<RangeId, [number, number]> = {
-      blankLeft: [0, shown.offset],
-      blankRight: [end, durationMs],
-      fixed: [shown.offset, shown.offset + shown.consonant],
-    };
-    const markers: Record<Marker, number> = {
-      consonant: shown.offset + shown.consonant,
-      cutoff: end,
-      offset: shown.offset,
-      overlap: shown.offset + shown.overlap,
-      preutter: shown.offset + shown.preutter,
+      blankLeft: [0, markers.offset],
+      blankRight: [markers.cutoff, durationMs],
+      fixed: [markers.offset, markers.consonant],
     };
     const existing = new Map(
       regions.getRegions().map((region) => [region.id, region])
@@ -806,16 +799,16 @@ export const WaveView = (props: WaveViewProps) => {
           (currentAudio.kind === "ready"
             ? currentAudio.durationMs
             : instance.getDuration() * 1000);
-        if (instance.isPlaying() || isFilePlaying()) {
+        if (instance.isPlaying() || filePlayback.active) {
           instance.pause();
-          stopFilePlayback();
+          filePlayback.stop();
           restoreScroll();
           return;
         }
         if (end <= start) {
           return;
         }
-        stopTiming();
+        timingPlayback.stop();
         returnScroll = settingsStore.state.returnToPlayStart
           ? instance.getScroll()
           : null;
@@ -858,7 +851,7 @@ export const WaveView = (props: WaveViewProps) => {
           });
           await instance.loadBlob(loaded.blob);
         } catch (error) {
-          notify("error", String(error));
+          notify("error", errorText(error));
         }
       };
 
@@ -949,8 +942,8 @@ export const WaveView = (props: WaveViewProps) => {
         },
         stop: () => {
           instance.pause();
-          stopFilePlayback();
-          stopTiming();
+          filePlayback.stop();
+          timingPlayback.stop();
           restoreScroll();
         },
         zoom: (factor: number) => {
@@ -1076,7 +1069,7 @@ export const WaveView = (props: WaveViewProps) => {
       const offPause = instance.on("pause", restoreScroll);
       return () => {
         finishGesture();
-        stopFilePlayback();
+        filePlayback.stop();
         unregister();
         offFinish();
         offPause();

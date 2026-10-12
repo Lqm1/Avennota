@@ -1,6 +1,7 @@
 import { createStore, useSelector } from "@tanstack/react-store";
 
 import type { OtoSet } from "../oto/oto-set";
+import { visibleLines } from "./row-filter";
 
 export const CELL_COLUMNS = [
   "wav",
@@ -41,7 +42,7 @@ export const selectedCells = (
   if (selection === null) {
     return fallbackId === null ? [] : [{ lineId: fallbackId, column: "alias" }];
   }
-  const lines = otoSet.lines.filter((line) => line.parsed.kind !== "blank");
+  const lines = visibleLines(otoSet);
   const a = lines.findIndex((line) => line.id === selection.anchor.lineId);
   const b = lines.findIndex((line) => line.id === selection.active.lineId);
   if (a === -1 || b === -1) {
@@ -57,3 +58,12 @@ export const selectedCells = (
       )
     );
 };
+
+export const selectedLineIds = (
+  otoSet: OtoSet,
+  selection: CellSelection | null,
+  fallbackId: string | null
+): Set<string> =>
+  new Set(
+    selectedCells(otoSet, selection, fallbackId).map((cell) => cell.lineId)
+  );

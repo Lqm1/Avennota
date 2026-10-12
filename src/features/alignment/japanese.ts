@@ -1,3 +1,10 @@
+export const SMALL_KANA = "ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ";
+
+export const continuesSyllable = (text: string, index: number): boolean => {
+  const next = text.charAt(index);
+  return next !== "" && SMALL_KANA.includes(next);
+};
+
 export interface Mora {
   kana: string;
   phones: string[];

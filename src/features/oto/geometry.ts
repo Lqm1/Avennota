@@ -43,7 +43,20 @@ export const toPositions = (
   preutter: params.offset + params.preutter,
 });
 
-const round = (value: number): number => Math.round(value * 1000) / 1000;
+export const roundMs = (value: number): number =>
+  Math.round(value * 1000) / 1000;
+
+/** 正の右ブランクは末尾からの距離なので変えない。 */
+export const moveOffset = (params: OtoParams, offset: number): OtoParams => {
+  const delta = offset - params.offset;
+  return {
+    offset: roundMs(offset),
+    consonant: roundMs(params.consonant - delta),
+    preutter: roundMs(params.preutter - delta),
+    overlap: roundMs(params.overlap - delta),
+    cutoff: params.cutoff < 0 ? roundMs(params.cutoff + delta) : params.cutoff,
+  };
+};
 
 /** 負の右ブランクは0になると意味が変わるため、左ブランクより後ろにこの長さだけ残す。 */
 const MIN_NEGATIVE_CUTOFF = 1;
@@ -55,9 +68,11 @@ export const toggleCutoffSign = (
 ): Partial<OtoParams> => {
   const end = cutoffEnd(params, durationMs);
   if (params.cutoff < 0) {
-    return { cutoff: round(Math.max(durationMs - end, 0)) };
+    return { cutoff: roundMs(Math.max(durationMs - end, 0)) };
   }
-  return { cutoff: round(-Math.max(end - params.offset, MIN_NEGATIVE_CUTOFF)) };
+  return {
+    cutoff: roundMs(-Math.max(end - params.offset, MIN_NEGATIVE_CUTOFF)),
+  };
 };
 
 /**

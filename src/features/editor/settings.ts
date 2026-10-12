@@ -165,6 +165,11 @@ export type EditorPanel =
   | "settings"
   | "bulk"
   | "alias"
+  | "query"
+  | "aliasRules"
+  | "duplicates"
+  | "parameters"
+  | "conversion"
   | "fileOpen"
   | "fileSave"
   | "tools"
@@ -181,4 +186,7 @@ export type EditorPanel =
 export const editorPanelStore = createStore<EditorPanel>(null);
 export const showEditorPanel = (panel: EditorPanel): void => {
   editorPanelStore.setState(() => panel);
+};
+export const closeEditorPanel = (): void => {
+  showEditorPanel(null);
 };

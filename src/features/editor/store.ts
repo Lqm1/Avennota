@@ -5,13 +5,21 @@ import type {
   RecoveryRecord,
   VoiceFolder,
 } from "../../platform/files";
-import { FileAccessError, getFilePlatform } from "../../platform/files";
-import { applyFileChanges, bytesEqual } from "../../platform/files/transaction";
+import {
+  errorText,
+  FileAccessError,
+  getFilePlatform,
+} from "../../platform/files";
+import {
+  applyFileChanges,
+  bytesEqual,
+  readIfExists,
+} from "../../platform/files/transaction";
 import type { OtoEncoding } from "../oto/encoding";
 import type { OtoLine, OtoParams, OtoSet } from "../oto/oto-set";
 import {
+  copyLine,
   createEmptyOtoSet,
-  createLine,
   createOtoLine,
   fileStem,
   insertLines,
@@ -24,6 +32,7 @@ import {
   setLineText,
   withParams,
 } from "../oto/oto-set";
+import { deleteLines } from "./batch";
 import { commentFileName, readComments, writeComments } from "./comments";
 import type { FolderBookmark } from "./folder-bookmark";
 import { rememberFolder, reopenBookmark } from "./folder-history";
@@ -37,7 +46,9 @@ import {
 } from "./history";
 import { deserializeOtoSet, serializeOtoSetForRecovery } from "./recovery-data";
 import type { RecoveryData } from "./recovery-data";
-import { ustFilterStore } from "./ust-filter";
+import { rowFilterStore, visibleLines } from "./row-filter";
+
+export { errorText } from "../../platform/files";
 
 export const OTO_NAME = "oto.ini";
 export const BACKUP_SUFFIX = ".bak";
@@ -160,8 +171,25 @@ export const ask = async (
   return await promise;
 };
 
-export const errorText = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+export const withBusy = async <T>(
+  label: string,
+  action: () => Promise<T>
+): Promise<T> => {
+  set({ busy: label });
+  try {
+    return await action();
+  } finally {
+    set({ busy: "" });
+  }
+};
+
+export const runTool = async (action: () => Promise<void>): Promise<void> => {
+  try {
+    await action();
+  } catch (error) {
+    notify("error", errorText(error));
+  }
+};
 
 /**
  * 現在の入力欄の編集を確定させる。React Ariaの入力欄はフォーカスを外したときに値を確定し、
@@ -185,6 +213,28 @@ const commit = (workspace: OpenWorkspace, next: Snapshot): OpenWorkspace => {
   return { ...workspace, history: pushState(workspace.history, next) };
 };
 
+const nearestRemaining = (present: Snapshot, otoSet: OtoSet): string | null => {
+  if (otoSet.lines.some((line) => line.id === present.selectedId)) {
+    return present.selectedId;
+  }
+  const remaining = new Set(
+    otoSet.lines
+      .filter((line) => line.parsed.kind === "oto")
+      .map((line) => line.id)
+  );
+  const previous = present.otoSet.lines;
+  const index = previous.findIndex((line) => line.id === present.selectedId);
+  const candidates = [
+    ...previous.slice(index + 1),
+    ...previous.slice(0, Math.max(index, 0)).toReversed(),
+  ];
+  return (
+    candidates.find((line) => remaining.has(line.id))?.id ??
+    otoSet.lines.find((line) => remaining.has(line.id))?.id ??
+    null
+  );
+};
+
 /** 範囲編集も1回の履歴として保存する。元の行・バイトは未変更行で維持する。 */
 export const transformOtoSet = (
   transform: (otoSet: OtoSet) => OtoSet
@@ -195,12 +245,10 @@ export const transformOtoSet = (
     if (otoSet === present.otoSet) {
       return workspace;
     }
-    const selectedId = otoSet.lines.some(
-      (line) => line.id === present.selectedId
-    )
-      ? present.selectedId
-      : (otoSet.lines.find((line) => line.parsed.kind === "oto")?.id ?? null);
-    return commit(workspace, { otoSet, selectedId });
+    return commit(workspace, {
+      otoSet,
+      selectedId: nearestRemaining(present, otoSet),
+    });
   });
 };
 
@@ -339,7 +387,7 @@ export const duplicateLine = (lineId: OtoLine["id"]): void => {
     if (!source) {
       return workspace;
     }
-    const copy = createLine(source.text);
+    const copy = copyLine(source);
     return commit(workspace, {
       otoSet: insertLines(otoSet, index + 1, [copy]),
       selectedId: copy.id,
@@ -362,20 +410,41 @@ export const deleteLine = (lineId: OtoLine["id"]): void => {
   });
 };
 
+export const deleteLineKeepingWav = (lineId: OtoLine["id"]): void => {
+  const { workspace } = get();
+  if (workspace.kind === "closed") {
+    return;
+  }
+  const { otoSet } = workspace.history.present;
+  if (deleteLines(otoSet, new Set([lineId]), false).otoSet === otoSet) {
+    notify("warning", "同じWAVの最後の行は削除できません。");
+    return;
+  }
+  deleteLine(lineId);
+};
+
+export const unlistedWavs = (
+  otoSet: OtoSet,
+  wavs: Session["wavs"]
+): string[] => {
+  const listed = new Set(
+    otoSet.lines.flatMap((line) =>
+      line.parsed.kind === "oto" ? [line.parsed.oto.wav.toLowerCase()] : []
+    )
+  );
+  return [...wavs.values()]
+    .filter((name) => !listed.has(name.toLowerCase()))
+    .toSorted((a, b) => a.localeCompare(b, "ja"));
+};
+
 /** oto.iniに行がないWAVだけを追加する。初期値は自動推定ではない。 */
 export const addLinesForUnlistedWavs = (): number => {
   let added = 0;
   updateWorkspace((workspace) => {
     const { otoSet, selectedId } = workspace.history.present;
-    const listed = new Set(
-      otoSet.lines.flatMap((line) =>
-        line.parsed.kind === "oto" ? [line.parsed.oto.wav.toLowerCase()] : []
-      )
+    const lines = unlistedWavs(otoSet, workspace.session.wavs).map((name) =>
+      createOtoLine(name, fileStem(name))
     );
-    const lines = [...workspace.session.wavs.values()]
-      .filter((name) => !listed.has(name.toLowerCase()))
-      .toSorted((a, b) => a.localeCompare(b, "ja"))
-      .map((name) => createOtoLine(name, fileStem(name)));
     added = lines.length;
     if (added === 0) {
       return workspace;
@@ -436,19 +505,21 @@ const openNotice = (
   return null;
 };
 
+export const wavIndex = (files: readonly string[]): Map<string, string> =>
+  new Map(
+    files
+      .filter((name) => name.toLowerCase().endsWith(".wav"))
+      .map((name) => [name.toLowerCase(), name])
+  );
+
 export const openVoiceFolder = async (
   folder: VoiceFolder,
   platform: FilePlatform,
   requestedName?: string
-): Promise<Session> => {
-  set({ busy: "フォルダを読み込んでいます" });
-  try {
+): Promise<Session> =>
+  await withBusy("フォルダを読み込んでいます", async () => {
     const files = await folder.listFiles();
-    const wavs = new Map(
-      files
-        .filter((name) => name.toLowerCase().endsWith(".wav"))
-        .map((name) => [name.toLowerCase(), name])
-    );
+    const wavs = wavIndex(files);
     let otoName =
       requestedName ??
       files.find((name) => name.toLowerCase() === OTO_NAME) ??
@@ -456,9 +527,7 @@ export const openVoiceFolder = async (
     let baseline: Session["baseline"];
     let created = false;
     try {
-      baseline = (await folder.stat(otoName))
-        ? await folder.read(otoName)
-        : null;
+      baseline = await readIfExists(folder, otoName);
     } catch (error) {
       if (
         !(error instanceof FileAccessError) ||
@@ -490,7 +559,7 @@ export const openVoiceFolder = async (
       // 復元データを記録できなくても編集と明示保存はできる。記録できないことは表示し続ける。
       recoveryError = `このフォルダの復元データは記録できません: ${errorText(error)}`;
     }
-    ustFilterStore.setState(() => null);
+    rowFilterStore.setState(() => null);
     const firstOto = otoSet.lines.find((line) => line.parsed.kind === "oto");
     const session: Session = {
       commentBaseline,
@@ -522,10 +591,7 @@ export const openVoiceFolder = async (
       notify("warning", "フォルダ履歴を保存できません。編集は継続できます。");
     }
     return session;
-  } finally {
-    set({ busy: "" });
-  }
-};
+  });
 
 const digest = async (bytes: Session["baseline"]): Promise<string | null> => {
   if (!bytes) {
@@ -578,87 +644,88 @@ export const save = async (): Promise<boolean> => {
     );
     return false;
   }
-  set({ busy: "保存しています" });
-  try {
-    const { otoName } = session;
-    const folder = session.storageFolder ?? session.folder;
-    if (!(await folder.ensureWritable())) {
-      throw new FileAccessError(
-        "permission",
-        "フォルダへの書き込みが許可されていません。"
-      );
-    }
-    const current = (await folder.stat(otoName))
-      ? await folder.read(otoName)
-      : null;
-    if (!bytesEqual(current, session.baseline)) {
-      const choice = await ask({
-        actions: [
-          { id: "overwrite", label: "上書きする", tone: "danger" },
-          { id: "cancel", label: "キャンセル" },
-        ],
-        message:
-          current === null
-            ? `${otoName}が他のアプリで削除されています。編集中の内容で作成しますか。`
-            : `${otoName}が開いた後に他のアプリで変更されています。上書きすると他のアプリの変更は失われます（変更前の内容は${otoName}${BACKUP_SUFFIX}に残します）。`,
-        title: "元ファイルが変更されています",
-      });
-      if (choice !== "overwrite") {
+  return await withBusy("保存しています", async () => {
+    try {
+      const { otoName } = session;
+      const folder = session.storageFolder ?? session.folder;
+      if (!(await folder.ensureWritable())) {
+        throw new FileAccessError(
+          "permission",
+          "フォルダへの書き込みが許可されていません。"
+        );
+      }
+      const current = await readIfExists(folder, otoName);
+      if (!bytesEqual(current, session.baseline)) {
+        const choice = await ask({
+          actions: [
+            { id: "overwrite", label: "上書きする", tone: "danger" },
+            { id: "cancel", label: "キャンセル" },
+          ],
+          message:
+            current === null
+              ? `${otoName}が他のアプリで削除されています。編集中の内容で作成しますか。`
+              : `${otoName}が開いた後に他のアプリで変更されています。上書きすると他のアプリの変更は失われます（変更前の内容は${otoName}${BACKUP_SUFFIX}に残します）。`,
+          title: "元ファイルが変更されています",
+        });
+        if (choice !== "overwrite") {
+          return false;
+        }
+      }
+      const commentName = commentFileName(otoName);
+      const currentComments = await readIfExists(folder, commentName);
+      const hasComments = currentComments !== null || hasLineComments(otoSet);
+      const commentBytes = hasComments ? writeComments(otoSet) : null;
+      if (
+        !bytesEqual(currentComments, session.commentBaseline ?? null) &&
+        (await ask({
+          title: "コメントファイルが変更されています",
+          message: `${commentName}を編集内容で上書きしますか。`,
+          actions: [
+            { id: "overwrite", label: "上書きする", tone: "danger" },
+            { id: "cancel", label: "キャンセル" },
+          ],
+        })) !== "overwrite"
+      ) {
         return false;
       }
-    }
-    const commentName = commentFileName(otoName);
-    const currentComments = (await folder.stat(commentName))
-      ? await folder.read(commentName)
-      : null;
-    const hasComments = currentComments !== null || hasLineComments(otoSet);
-    const commentBytes = hasComments ? writeComments(otoSet) : null;
-    if (
-      !bytesEqual(currentComments, session.commentBaseline ?? null) &&
-      (await ask({
-        title: "コメントファイルが変更されています",
-        message: `${commentName}を編集内容で上書きしますか。`,
-        actions: [
-          { id: "overwrite", label: "上書きする", tone: "danger" },
-          { id: "cancel", label: "キャンセル" },
-        ],
-      })) !== "overwrite"
-    ) {
+      await applyFileChanges(folder, [
+        { name: otoName, before: current, after: serialized.bytes },
+        ...(hasComments
+          ? [
+              {
+                name: commentName,
+                before: currentComments,
+                after: commentBytes,
+              },
+            ]
+          : []),
+      ]);
+      updateWorkspace((opened) =>
+        opened.session === session
+          ? {
+              ...opened,
+              session: {
+                ...session,
+                baseline: serialized.bytes,
+                commentBaseline: commentBytes,
+                savedOtoSet: otoSet,
+              },
+            }
+          : opened
+      );
+      notify("info", `${otoName}を保存しました。`);
+      if (!selectIsDirty(get())) {
+        await clearRecovery(session);
+      }
+      return true;
+    } catch (error) {
+      notify(
+        "error",
+        `保存できませんでした。編集内容は残っています。${errorText(error)}`
+      );
       return false;
     }
-    await applyFileChanges(folder, [
-      { name: otoName, before: current, after: serialized.bytes },
-      ...(hasComments
-        ? [{ name: commentName, before: currentComments, after: commentBytes }]
-        : []),
-    ]);
-    updateWorkspace((opened) =>
-      opened.session === session
-        ? {
-            ...opened,
-            session: {
-              ...session,
-              baseline: serialized.bytes,
-              commentBaseline: commentBytes,
-              savedOtoSet: otoSet,
-            },
-          }
-        : opened
-    );
-    notify("info", `${otoName}を保存しました。`);
-    if (!selectIsDirty(get())) {
-      await clearRecovery(session);
-    }
-    return true;
-  } catch (error) {
-    notify(
-      "error",
-      `保存できませんでした。編集内容は残っています。${errorText(error)}`
-    );
-    return false;
-  } finally {
-    set({ busy: "" });
-  }
+  });
 };
 
 /** 未保存の変更があれば、保存・破棄・キャンセルを選ばせる。続行してよければtrue。 */
@@ -690,6 +757,16 @@ export const confirmDiscardChanges = async (
   return false;
 };
 
+export const openBookmark = async (entry: FolderBookmark): Promise<void> => {
+  const folder = await reopenBookmark(entry);
+  if (folder === null) {
+    throw new Error(
+      "このフォルダにアクセスできません。音源フォルダを開くボタンから選び直してください。"
+    );
+  }
+  await openVoiceFolder(folder, await getFilePlatform());
+};
+
 export const openFolder = async (): Promise<void> => {
   if (!(await confirmDiscardChanges("別のフォルダを開く"))) {
     return;
@@ -713,7 +790,7 @@ const hasControlCharacters = (name: string): boolean => {
   }
   return false;
 };
-const validIniName = (name: string): boolean =>
+export const validIniName = (name: string): boolean =>
   name.trim() !== "" &&
   !/[\\/<>:"|?*]/u.test(name) &&
   !hasControlCharacters(name) &&
@@ -910,13 +987,9 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
           return false;
         }
       }
-      const baseline = (await storageFolder.stat(data.otoName))
-        ? await storageFolder.read(data.otoName)
-        : null;
+      const baseline = await readIfExists(storageFolder, data.otoName);
       const commentName = commentFileName(data.otoName);
-      const commentBaseline = (await storageFolder.stat(commentName))
-        ? await storageFolder.read(commentName)
-        : null;
+      const commentBaseline = await readIfExists(storageFolder, commentName);
       session = {
         ...session,
         storageFolder,
@@ -961,20 +1034,8 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
   }
 };
 
-/** 一覧に出す行。空行は保持するが一覧には出さない。 */
-export const listedLines = (otoSet: OtoSet): OtoLine[] =>
-  otoSet.lines.filter((line) => line.parsed.kind !== "blank");
-
 const lineWav = (line: OtoLine | undefined): string | null =>
   line?.parsed.kind === "oto" ? line.parsed.oto.wav.toLowerCase() : null;
-
-const navigationLines = (otoSet: OtoSet): OtoLine[] => {
-  const filter = ustFilterStore.state;
-  return listedLines(otoSet).filter(
-    (line) =>
-      filter === null || (line.parsed.kind === "oto" && filter.has(line.id))
-  );
-};
 
 export const selectRelative = (delta: number): void => {
   const { workspace } = get();
@@ -982,7 +1043,7 @@ export const selectRelative = (delta: number): void => {
     return;
   }
   const { otoSet, selectedId } = workspace.history.present;
-  const lines = navigationLines(otoSet);
+  const lines = visibleLines(otoSet);
   const index = lines.findIndex((line) => line.id === selectedId);
   const next = lines[Math.max(0, Math.min(lines.length - 1, index + delta))];
   if (next) {
@@ -997,7 +1058,7 @@ export const selectRelativeWav = (delta: 1 | -1): void => {
     return;
   }
   const { otoSet, selectedId } = workspace.history.present;
-  const lines = navigationLines(otoSet);
+  const lines = visibleLines(otoSet);
   let index = lines.findIndex((line) => line.id === selectedId);
   const current = lineWav(lines[index]);
   while (index + delta >= 0 && index + delta < lines.length) {

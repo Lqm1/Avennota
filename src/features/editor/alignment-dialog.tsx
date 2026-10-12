@@ -17,7 +17,6 @@ import { loadJapaneseModel, phoneInventory } from "../alignment/models";
 import {
   applyOtoSuggestions,
   generateSelectedOtoSuggestions,
-  readCvTimingTable,
 } from "../alignment/oto-generation";
 import type { CvTiming, VoicebankFormat } from "../alignment/oto-generation";
 import {
@@ -26,27 +25,19 @@ import {
 } from "../alignment/recordings";
 import { regularizeRepeatedVowels } from "../alignment/rhythm";
 import type { BoundaryCorrection } from "../alignment/rhythm";
+import { SyllableTable } from "../alignment/syllable-table";
 import type { AcousticModel } from "../alignment/types";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
-import type { OtoSet, ParsedOtoLine } from "../oto/oto-set";
-import {
-  formatNumber,
-  isOtoLine,
-  PARAM_KEYS,
-  PARAM_LABELS,
-} from "../oto/oto-set";
+import { decodeText } from "../oto/encoding";
+import type { OtoSet } from "../oto/oto-set";
+import { formatNumber, isOtoLine } from "../oto/oto-set";
+import { countEntries } from "./batch";
+import type { BatchEntry } from "./batch";
+import { applyBatch, PreviewTable } from "./batch-preview";
 import { LabelExport } from "./label-export";
-import { ParamSwatch } from "./param-swatch";
 import { RecordingTempoField } from "./recording-tempo";
 import type { RecordingTempo } from "./recording-tempo";
 import { showEditorPanel } from "./settings";
-import {
-  editorStore,
-  errorText,
-  notify,
-  transformOtoSet,
-  useEditor,
-} from "./store";
+import { editorStore, errorText, notify, useEditor } from "./store";
 import type { Session } from "./store";
 
 type ApplyMode = "generate" | "update";
@@ -81,10 +72,42 @@ const modeHints: Record<ApplyMode, string> = {
   generate:
     "対象WAVの既存行を削除し、推定結果をもとに原音設定行を新しく生成し直します。",
 };
-const textOf = (bytes: Uint8Array<ArrayBuffer>) =>
-  decodeBytes(bytes, guessEncoding(bytes).encoding);
 const PAGE_SIZE = 50;
-const PREVIEW_LIMIT = 100;
+const changeEntries = (result: ResultState): BatchEntry[] => {
+  const before = new Map(result.before.lines.map((line) => [line.id, line]));
+  const after = new Set(result.after.lines.map((line) => line.id));
+  const changed = result.after.lines
+    .filter(isOtoLine)
+    .flatMap((line): BatchEntry[] => {
+      const previous = before.get(line.id);
+      if (previous === line) {
+        return [];
+      }
+      return [
+        {
+          kind: previous === undefined ? "add" : "change",
+          lineId: line.id,
+          before:
+            previous !== undefined && isOtoLine(previous)
+              ? previous.parsed.oto
+              : null,
+          after: line.parsed.oto,
+          note: "",
+        },
+      ];
+    });
+  const removed = result.before.lines
+    .filter(isOtoLine)
+    .filter((line) => !after.has(line.id))
+    .map((line): BatchEntry => ({
+      kind: "delete",
+      lineId: line.id,
+      before: line.parsed.oto,
+      after: null,
+      note: "",
+    }));
+  return [...changed, ...removed];
+};
 const runInferenceTask = async (
   task: () => Promise<void>,
   onError: (error: unknown) => void,
@@ -338,59 +361,6 @@ const Notice = ({
   </details>
 );
 
-const ChangedLines = ({ lines }: { lines: ParsedOtoLine[] }) => (
-  <Section
-    title={`変更される設定行（${lines.length}行）`}
-    action={
-      lines.length > PREVIEW_LIMIT ? (
-        <span className="text-[11px] text-slate-400">
-          先頭 {PREVIEW_LIMIT} 行を表示中
-        </span>
-      ) : null
-    }
-  >
-    <div className="border-line max-h-80 overflow-auto rounded border">
-      <table className="w-full text-xs tabular-nums">
-        <caption className="sr-only">変更される設定行</caption>
-        <thead className="bg-panel sticky top-0 text-[11px] text-slate-400">
-          <tr className="border-line border-b">
-            <th className="px-2 py-1.5 text-left font-normal">WAVファイル</th>
-            <th className="px-2 py-1.5 text-left font-normal">エイリアス</th>
-            {PARAM_KEYS.map((key) => (
-              <th
-                key={key}
-                className="px-2 py-1.5 text-right font-normal whitespace-nowrap"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <ParamSwatch param={key} />
-                  {PARAM_LABELS[key]}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="text-slate-200">
-          {lines.slice(0, PREVIEW_LIMIT).map((line) => (
-            <tr key={line.id} className="border-b border-white/5">
-              <td className="max-w-40 truncate px-2 py-1 text-slate-400">
-                {line.parsed.oto.wav}
-              </td>
-              <th className="px-2 py-1 text-left font-normal whitespace-nowrap">
-                {line.parsed.oto.alias}
-              </th>
-              {PARAM_KEYS.map((key) => (
-                <td key={key} className="px-2 py-1 text-right font-mono">
-                  {formatNumber(line.parsed.oto[key])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </Section>
-);
-
 const ResultView = ({
   result,
   mode,
@@ -404,30 +374,17 @@ const ResultView = ({
   onApply: () => void;
   onClose: () => void;
 }) => {
-  const preview = useMemo(() => {
-    const before = new Map(result.before.lines.map((line) => [line.id, line]));
-    const after = new Set(result.after.lines.map((line) => line.id));
-    return {
-      changed: result.after.lines
-        .filter(isOtoLine)
-        .filter((line) => before.get(line.id) !== line),
-      removed: result.before.lines
-        .filter(isOtoLine)
-        .filter((line) => !after.has(line.id)),
-    };
-  }, [result]);
+  const entries = useMemo(() => changeEntries(result), [result]);
+  const counts = countEntries(entries);
   const unchanged = result.after === result.before;
-  const notices =
-    preview.removed.length +
-    result.onsetCorrections.length +
-    result.corrections.length;
+  const notices = result.onsetCorrections.length + result.corrections.length;
   return (
     <div className="flex flex-col gap-6">
       <dl className="grid grid-cols-3 gap-2">
         {[
           { label: "推定対象WAV", value: result.count },
-          { label: "変更される行", value: preview.changed.length },
-          { label: "削除される行", value: preview.removed.length },
+          { label: "変更される行", value: counts.add + counts.change },
+          { label: "削除される行", value: counts.delete },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -448,20 +405,6 @@ const ResultView = ({
       {notices > 0 ? (
         <Section title="確認事項">
           <div className="border-line divide-y divide-white/5 rounded border">
-            {preview.removed.length > 0 ? (
-              <Notice
-                title={`再生成に伴い削除される設定行（${preview.removed.length}行）`}
-              >
-                {preview.removed.slice(0, PREVIEW_LIMIT).map((line) => (
-                  <li key={line.id}>
-                    {line.parsed.oto.wav}: {line.parsed.oto.alias}
-                  </li>
-                ))}
-                {preview.removed.length > PREVIEW_LIMIT ? (
-                  <li>…他 {preview.removed.length - PREVIEW_LIMIT} 行</li>
-                ) : null}
-              </Notice>
-            ) : null}
             {result.onsetCorrections.length > 0 ? (
               <Notice
                 title={`単独音（CV）の基準位置を有声開始に合わせて補正（${result.onsetCorrections.length}件）`}
@@ -490,8 +433,10 @@ const ResultView = ({
           </div>
         </Section>
       ) : null}
-      {preview.changed.length > 0 ? (
-        <ChangedLines lines={preview.changed} />
+      {entries.length > 0 ? (
+        <Section title="変更・削除される設定行">
+          <PreviewTable entries={entries} />
+        </Section>
       ) : null}
       <LabelExport
         recordings={result.recordings}
@@ -575,7 +520,7 @@ export const AlignmentDialog = () => {
         if (!phonemap) {
           return;
         }
-        const mapText = textOf(phonemap.bytes);
+        const mapText = decodeText(phonemap.bytes);
         phoneInventory(mapText);
         setCustomModel({
           id: "custom",
@@ -589,9 +534,9 @@ export const AlignmentDialog = () => {
           return;
         }
         if (kind === "index") {
-          setIndex(readRecordingIndex(textOf(file.bytes)));
+          setIndex(readRecordingIndex(decodeText(file.bytes)));
         } else {
-          setCvTimings(readCvTimingTable(textOf(file.bytes)));
+          setCvTimings(SyllableTable.parse(decodeText(file.bytes)).cvTimings());
         }
       }
       setState({ kind: "idle" });
@@ -705,20 +650,12 @@ export const AlignmentDialog = () => {
     if (state.kind !== "result") {
       return;
     }
-    const current = editorStore.state.workspace;
-    if (
-      current.kind !== "open" ||
-      current.session !== state.session ||
-      current.history.present.otoSet !== state.before
-    ) {
-      setState({
-        kind: "error",
-        message:
-          "推定処理の実行中にエディターの編集内容が変更されました。お手数ですが、再度推定を実行してください。",
-      });
+    try {
+      applyBatch({ base: state.before, otoSet: state.after, entries: [] });
+    } catch (error) {
+      setState({ kind: "error", message: errorText(error) });
       return;
     }
-    transformOtoSet(() => state.after);
     notify(
       "info",
       `${state.count}件のWAVファイルの推定結果を反映しました。波形画面で設定値を確認の上、保存してください（元に戻す操作で一括取り消しが可能です）。`

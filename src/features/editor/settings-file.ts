@@ -6,7 +6,7 @@ import {
 import type { AdvancedSettings } from "./advanced-settings";
 import { settingsSchema } from "./settings";
 import type { EditorSettings } from "./settings";
-import { notify } from "./store";
+import { errorText, notify } from "./store";
 
 export const settingsFile = async (
   mode: "read" | "write",
@@ -89,6 +89,6 @@ export const settingsFile = async (
       advanced: advancedSettingsSchema.parse({ ...advanced, ...patch }),
     });
   } catch (error) {
-    notify("error", `設定ファイルを操作できません: ${String(error)}`);
+    notify("error", `設定ファイルを操作できません: ${errorText(error)}`);
   }
 };

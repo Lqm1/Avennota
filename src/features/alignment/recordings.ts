@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { VoiceFolder } from "../../platform/files/types";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
+import { decodeText } from "../oto/encoding";
 import {
   moraeFromPhones,
   parseMorae,
@@ -125,9 +125,7 @@ export const readRecordingTranscripts = async ({
     const name = names.find((entry) => entry.toLowerCase() === "index.csv");
     if (name !== undefined) {
       const bytes = await folder.read(name);
-      recordingIndex = readRecordingIndex(
-        decodeBytes(bytes, guessEncoding(bytes).encoding)
-      );
+      recordingIndex = readRecordingIndex(decodeText(bytes));
     }
   }
   const priority = new Map(

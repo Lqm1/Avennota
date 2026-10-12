@@ -1,15 +1,39 @@
+import { moveOffset } from "../oto/geometry";
 import {
+  effectiveAlias,
   fileStem,
   formatNumber,
+  isOtoLine,
   replaceLine,
-  removeLine,
   setLineOto,
   withParams,
   PARAM_KEYS,
 } from "../oto/oto-set";
-import type { Oto, OtoSet } from "../oto/oto-set";
+import type { Oto, OtoSet, ParamKey, ParsedOtoLine } from "../oto/oto-set";
+import { deleteLines } from "./batch";
 import { CELL_COLUMNS } from "./cell-selection";
 import type { CellPoint } from "./cell-selection";
+
+export const paramText = (oto: Oto, key: ParamKey): string => {
+  const token = oto.paramTexts[PARAM_KEYS.indexOf(key)];
+  if (token === "" || token === "-") {
+    return token;
+  }
+  return Number.isFinite(oto[key]) ? formatNumber(oto[key]) : (token ?? "");
+};
+
+export const cellText = (
+  line: ParsedOtoLine,
+  column: Exclude<CellPoint["column"], "wav">
+): string => {
+  if (column === "alias") {
+    return line.parsed.oto.alias;
+  }
+  if (column === "comment") {
+    return line.comment ?? "";
+  }
+  return paramText(line.parsed.oto, column);
+};
 
 export const acceptsCellNumber = (text: string): boolean =>
   text === "" ||
@@ -81,7 +105,7 @@ export const editCell = (
       Number.isFinite(oto.offset) &&
       Number.isFinite(original.offset)
     ) {
-      const delta = oto.offset - original.offset;
+      const moved = moveOffset(original, oto.offset);
       const changes: Partial<Oto> = {};
       for (const column of [
         "consonant",
@@ -95,13 +119,7 @@ export const editCell = (
           token !== "" &&
           Number.isFinite(original[column])
         ) {
-          if (column === "cutoff") {
-            if (original.cutoff < 0) {
-              changes.cutoff = original.cutoff + delta;
-            }
-          } else {
-            changes[column] = original[column] - delta;
-          }
+          changes[column] = moved[column];
         }
       }
       oto = withParams(oto, changes);
@@ -183,27 +201,13 @@ export const copyCells = (
   const byRow = new Map<string, string[]>();
   for (const { lineId, column } of cells) {
     const line = source.lines.find((candidate) => candidate.id === lineId);
-    if (line?.parsed.kind !== "oto") {
+    if (line === undefined || !isOtoLine(line)) {
       continue;
     }
     const values = byRow.get(lineId) ?? [];
-    if (column === "comment") {
-      values.push(line.comment ?? "");
-      byRow.set(lineId, values);
-      continue;
-    }
-    const value = line.parsed.oto[column];
-    let text = typeof value === "number" ? formatNumber(value) : value;
-    if (column !== "wav" && column !== "alias") {
-      const token = line.parsed.oto.paramTexts[PARAM_KEYS.indexOf(column)];
-      if (token === "" || token === "-") {
-        text = token;
-      }
-    }
-    if (column === "wav" && typeof value === "string") {
-      text = fileStem(value);
-    }
-    values.push(text);
+    values.push(
+      column === "wav" ? fileStem(line.parsed.oto.wav) : cellText(line, column)
+    );
     byRow.set(lineId, values);
   }
   return `${[...byRow.values()].map((values) => values.join(delimiter)).join("\n")}\n`;
@@ -275,7 +279,7 @@ export const changeAliases = (
       continue;
     }
     const { oto } = line.parsed;
-    const [name, suffix] = splitName(oto.alias || fileStem(oto.wav));
+    const [name, suffix] = splitName(effectiveAlias(oto));
     const chars = oto.alias.slice(change.deletePrefix);
     const alias = chars.slice(
       0,
@@ -302,20 +306,5 @@ export const changeAliases = (
       })
     );
   }
-  for (const id of deletions.toReversed()) {
-    const target = next.lines.find((line) => line.id === id);
-    const wav = target?.parsed.kind === "oto" ? target.parsed.oto.wav : null;
-    if (
-      wav !== null &&
-      next.lines.some(
-        (line) =>
-          line.id !== id &&
-          line.parsed.kind === "oto" &&
-          line.parsed.oto.wav === wav
-      )
-    ) {
-      next = removeLine(next, id);
-    }
-  }
-  return next;
+  return deleteLines(next, new Set(deletions), false).otoSet;
 };

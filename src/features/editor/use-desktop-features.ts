@@ -10,19 +10,13 @@ import {
   editorStore,
   notify,
   openVoiceFolder,
+  runTool,
   transformOtoSet,
 } from "./store";
 
-const runDesktop = async (action: () => Promise<void>) => {
-  try {
-    await action();
-  } catch (error) {
-    notify("error", String(error));
-  }
-};
 const configureWindow = async (topmost: boolean, opacity: number) => {
   if (isTauri()) {
-    await runDesktop(async () => {
+    await runTool(async () => {
       await invoke("configure_window", { topmost, opacity });
     });
   }
@@ -33,8 +27,52 @@ const prevent = (event: DragEvent) => {
   }
 };
 
+const drop = (event: DragEvent) => {
+  if (event.dataTransfer === null) {
+    return;
+  }
+  event.preventDefault();
+  const [item] = event.dataTransfer.items;
+  // ハンドル取得はドロップのユーザー操作が有効な間に開始する。
+  const handlePromise = item?.getAsFileSystemHandle?.();
+  const [file] = event.dataTransfer.files;
+  const run = async () => {
+    const handle = await handlePromise;
+    if (handle instanceof FileSystemDirectoryHandle) {
+      if (!(await confirmDiscardChanges("ドロップしたフォルダを開く"))) {
+        return;
+      }
+      const { createBrowserFolder } =
+        await import("../../platform/files/browser");
+      await openVoiceFolder(
+        createBrowserFolder(handle),
+        await getFilePlatform()
+      );
+    } else if (file?.name.toLowerCase().endsWith(".ini") === true) {
+      if (editorStore.state.workspace.kind === "closed") {
+        notify("warning", "WAVのあるフォルダを先に開いてください。");
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!(await confirmDiscardChanges("ドロップしたiniを読み込む"))) {
+        return;
+      }
+      transformOtoSet(() => parseOto(bytes));
+      notify(
+        "info",
+        "ドロップしたiniを現在の音源フォルダへ読み込みました。保存先は現在のiniです。"
+      );
+    } else {
+      notify(
+        "warning",
+        "音源フォルダまたはiniファイルをドロップしてください。"
+      );
+    }
+  };
+  void runTool(run);
+};
 const registerDrops = () => {
-  void runDesktop(loadFolderHistory);
+  void runTool(loadFolderHistory);
   let disposed = false;
   let stop: (() => void) | null = null;
   const native = async () => {
@@ -64,7 +102,7 @@ const registerDrops = () => {
             : undefined
         );
       };
-      void runDesktop(run);
+      void runTool(run);
     });
     if (disposed) {
       off();
@@ -72,52 +110,8 @@ const registerDrops = () => {
       stop = off;
     }
   };
-  const drop = (event: DragEvent) => {
-    if (event.dataTransfer === null) {
-      return;
-    }
-    event.preventDefault();
-    const [item] = event.dataTransfer.items;
-    // ハンドル取得はドロップのユーザー操作が有効な間に開始する。
-    const handlePromise = item?.getAsFileSystemHandle?.();
-    const [file] = event.dataTransfer.files;
-    const run = async () => {
-      const handle = await handlePromise;
-      if (handle instanceof FileSystemDirectoryHandle) {
-        if (!(await confirmDiscardChanges("ドロップしたフォルダを開く"))) {
-          return;
-        }
-        const { createBrowserFolder } =
-          await import("../../platform/files/browser");
-        await openVoiceFolder(
-          createBrowserFolder(handle),
-          await getFilePlatform()
-        );
-      } else if (file?.name.toLowerCase().endsWith(".ini") === true) {
-        if (editorStore.state.workspace.kind === "closed") {
-          notify("warning", "WAVのあるフォルダを先に開いてください。");
-          return;
-        }
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        if (!(await confirmDiscardChanges("ドロップしたiniを読み込む"))) {
-          return;
-        }
-        transformOtoSet(() => parseOto(bytes));
-        notify(
-          "info",
-          "ドロップしたiniを現在の音源フォルダへ読み込みました。保存先は現在のiniです。"
-        );
-      } else {
-        notify(
-          "warning",
-          "音源フォルダまたはiniファイルをドロップしてください。"
-        );
-      }
-    };
-    void runDesktop(run);
-  };
   if (isTauri()) {
-    void runDesktop(native);
+    void runTool(native);
   } else {
     window.addEventListener("dragover", prevent);
     window.addEventListener("drop", drop);

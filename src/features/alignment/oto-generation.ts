@@ -1,6 +1,6 @@
 import {
   createOtoLine,
-  fileStem,
+  effectiveAlias,
   setLineOto,
   withParams,
 } from "../oto/oto-set";
@@ -20,49 +20,26 @@ export interface CvTiming {
 }
 
 const truncate = (value: number) => Math.trunc(value * 1000) / 1000;
-export const continuousTiming = (bpm: number): OtoParams => {
+export const beatLength = (bpm: number): number => {
   if (!Number.isFinite(bpm) || bpm <= 0) {
     throw new Error("収録BPMは0より大きい数値を指定してください。");
   }
-  const beat = 60_000 / bpm;
-  const overlap = truncate(beat / 6);
-  return {
-    offset: 0,
-    preutter: truncate(beat / 2),
-    overlap,
-    consonant: truncate((beat * 3) / 4),
-    cutoff: truncate(-(beat + overlap)),
-  };
+  return 60_000 / bpm;
 };
 
-export const readCvTimingTable = (text: string): Map<string, CvTiming> => {
-  const table = new Map<string, CvTiming>();
-  for (const [index, row] of text.split(/\r\n|\r|\n/u).entries()) {
-    if (row.trim() === "") {
-      continue;
-    }
-    const fields = row.split(",");
-    const alias = fields[0]?.trim();
-    const preutter = Number(fields[4]);
-    const overlap = Number(fields[5]);
-    if (
-      alias === undefined ||
-      alias === "" ||
-      fields.length < 6 ||
-      fields[4]?.trim() === "" ||
-      fields[5]?.trim() === "" ||
-      !Number.isFinite(preutter) ||
-      !Number.isFinite(overlap) ||
-      preutter < 0 ||
-      overlap > preutter
-    ) {
-      throw new Error(
-        `table.csvの${index + 1}行目を解釈できません。1列目の仮名と5・6列目の時間を確認してください。`
-      );
-    }
-    table.set(alias.normalize("NFKC"), { preutter, overlap });
-  }
-  return table;
+export const continuousTiming = (
+  bpm: number,
+  round: (value: number) => number = truncate
+): OtoParams => {
+  const beat = beatLength(bpm);
+  const overlap = round(beat / 6);
+  return {
+    offset: 0,
+    preutter: round(beat / 2),
+    overlap,
+    consonant: round((beat * 3) / 4),
+    cutoff: round(-(beat + overlap)),
+  };
 };
 
 const vowelName = (name: string) => (name === "N" ? "n" : name.toLowerCase());
@@ -368,7 +345,7 @@ export const applyOtoSuggestions = (
     }
     const { oto } = line.parsed;
     const wav = oto.wav.toLocaleLowerCase("ja");
-    const alias = oto.alias || fileStem(oto.wav);
+    const alias = effectiveAlias(oto);
     const queue = suggestionQueue(available, wav, alias, mode, suffix);
     const suggestion = queue?.shift();
     if (suggestion) {

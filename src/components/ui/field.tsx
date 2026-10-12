@@ -13,6 +13,7 @@ import {
   SearchField as AriaSearchField,
   Select as AriaSelect,
   SelectValue,
+  TextArea,
   TextField as AriaTextField,
 } from "react-aria-components";
 
@@ -76,6 +77,29 @@ export const CommitTextField = ({
     </AriaTextField>
   );
 };
+
+export const TextAreaField = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) => (
+  <AriaTextField
+    className="flex flex-col gap-1"
+    onChange={onChange}
+    value={value}
+  >
+    <Label className="text-[11px] text-slate-400">{label}</Label>
+    <TextArea
+      className={cn(inputClass, "h-auto py-1 font-mono")}
+      rows={6}
+      spellCheck={false}
+    />
+  </AriaTextField>
+);
 
 interface MsFieldProps {
   label: string;
