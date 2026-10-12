@@ -25,7 +25,7 @@ export const LabelExport = ({
       await saveLabels(folder, recordings);
       notify(
         "info",
-        `${recordings.length}件のラベルを音源フォルダに保存しました。`
+        `${recordings.length}件の音素ラベル（.lab）を音源フォルダに書き出しました。`
       );
     } catch (error) {
       setExportError(errorText(error));
@@ -33,30 +33,30 @@ export const LabelExport = ({
     setExporting(false);
   };
   return (
-    <fieldset disabled={exporting} className="flex flex-col gap-2">
-      <legend className="mb-2 text-sm text-slate-200">
+    <section className="flex flex-col gap-3">
+      <h3 className="text-xs font-semibold text-slate-400">
         音素ラベルの書き出し
-      </legend>
-      <div className="flex items-end gap-2">
+      </h3>
+      <div className="border-line flex items-center gap-3 rounded border px-3 py-2">
+        <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-400">
+          推定された音素境界を、各WAVファイルと同名のHTK単音素ラベル（.lab /
+          100ns単位）として音源フォルダに書き出します（テンポ補正等は含まれません）。既存の
+          .lab ファイルは .lab.bak に退避されます。
+        </p>
         <Button
+          isPending={exporting}
           onPress={() => {
             void save();
           }}
-          isDisabled={exporting}
         >
-          {exporting ? "書き出し中" : "音源フォルダにラベルを保存"}
+          {exporting ? "書き出し中…" : "音素ラベル（.lab）を書き出す"}
         </Button>
       </div>
-      <p className="text-xs text-slate-400">
-        SHIROの元の音素境界を前後の無音とともに出力します。BPMや原音設定用の補正は含みません。
-        WAVと同名のHTK単音素ラベル（.lab）を音源フォルダに保存します。既存のラベルは.lab.bakに退避してから上書きします。時刻は100ns単位です。
-        NNSVSの学習には別途、楽譜のフルコンテキストラベルが必要です。
-      </p>
       {exportError === null ? null : (
         <p role="alert" className="text-xs text-red-300">
           {exportError}
         </p>
       )}
-    </fieldset>
+    </section>
   );
 };

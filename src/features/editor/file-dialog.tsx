@@ -104,7 +104,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
         >
           {mode === "save" ? "保存先フォルダを選ぶ" : "音源フォルダを選ぶ"}
         </Button>
-        {folder?.pickIni && (
+        {folder?.pickIni ? (
           <Button
             onPress={() => {
               void chooseIni();
@@ -112,7 +112,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
           >
             iniファイルを個別に選ぶ
           </Button>
-        )}
+        ) : null}
         {mode === "open" ? (
           <SelectField
             label="iniファイル"

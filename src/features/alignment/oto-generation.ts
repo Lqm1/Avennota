@@ -165,7 +165,7 @@ export const generateOtoSuggestions = (
   const timing = continuousTiming(options.bpm);
   const suggestions: OtoSuggestion[] = [];
   let at = 0;
-  let previous: { name: string; start: number; end: number } | undefined;
+  let previous: PhoneInterval | undefined;
   const appendRelease = (limit: number) => {
     if (previous === undefined || options.format === "cv") {
       return;

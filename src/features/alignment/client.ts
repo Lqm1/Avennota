@@ -44,7 +44,7 @@ export const inferRecordings = async ({
     for (const phone of recording.morae.flatMap((mora) => mora.phones)) {
       if (!inventory.has(phone)) {
         throw new Error(
-          `「${recording.wav}」の音素「${phone}」はモデルにありません。`
+          `「${recording.wav}」の音素「${phone}」は音響モデルに対応していません。`
         );
       }
     }
@@ -62,13 +62,15 @@ export const inferRecordings = async ({
   };
   const fail = (event: ErrorEvent) => {
     interruption.reject(
-      new Error(`自動推定Workerが停止しました: ${event.message}`)
+      new Error(`自動推定ワーカーが停止しました: ${event.message}`)
     );
   };
   const decodeFailed = () => {
-    interruption.reject(new Error("自動推定Workerの結果を読み取れません。"));
+    interruption.reject(
+      new Error("自動推定ワーカーの処理結果を受信できませんでした。")
+    );
   };
-  const trainingProgress = (event: MessageEvent<unknown>) => {
+  const receive = (event: MessageEvent<unknown>) => {
     if (event.data === "ready") {
       ready.resolve(null);
       return;
@@ -81,7 +83,7 @@ export const inferRecordings = async ({
   signal.addEventListener("abort", abort, { once: true });
   worker.addEventListener("error", fail);
   worker.addEventListener("messageerror", decodeFailed);
-  worker.addEventListener("message", trainingProgress);
+  worker.addEventListener("message", receive);
   try {
     await Promise.race([ready.promise, interruption.promise]);
     let acousticModel = model;
@@ -139,7 +141,7 @@ export const inferRecordings = async ({
     signal.removeEventListener("abort", abort);
     worker.removeEventListener("error", fail);
     worker.removeEventListener("messageerror", decodeFailed);
-    worker.removeEventListener("message", trainingProgress);
+    worker.removeEventListener("message", receive);
     align[releaseProxy]();
     worker.terminate();
   }

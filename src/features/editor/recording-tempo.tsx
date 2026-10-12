@@ -1,7 +1,9 @@
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { MsField } from "../../components/ui/field";
+import { Tip } from "../../components/ui/tool-button";
 import type { VoiceFolder } from "../../platform/files/types";
 import { inferRecordings } from "../alignment/client";
 import { loadJapaneseModel } from "../alignment/models";
@@ -25,10 +27,9 @@ type EstimationState =
 
 const unavailableMessages = {
   recordings:
-    "BPM推定には、休符・促音で区切られずに5モーラ以上続く録音が必要です。対象WAVと発音列を確認してください。",
-  boundaries:
-    "BPM推定に使える発音間隔を十分に読み取れませんでした。発音列を確認してください。",
-  agreement: "録音ごとの推定BPMが揃わなかったため、自動入力していません。",
+    "テンポ推定に適した録音（休符や促音を含まない5モーラ以上の連続発声）がありません。",
+  boundaries: "音声から十分な発声間隔を検出できませんでした。",
+  agreement: "録音ごとのテンポ推定値にばらつきがあるため特定できませんでした。",
 };
 
 export const RecordingTempoField = ({
@@ -55,7 +56,7 @@ export const RecordingTempoField = ({
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<EstimationState>({
     kind: "loading",
-    message: "収録BPMを推定しています…",
+    message: "収録BPMを推定中…",
   });
   useEffect(() => {
     const controller = new AbortController();
@@ -63,10 +64,7 @@ export const RecordingTempoField = ({
       try {
         setState({
           kind: "loading",
-          message:
-            retry === 0
-              ? "収録BPMを推定しています…"
-              : "収録BPMを再推定しています…",
+          message: retry === 0 ? "収録BPMを推定中…" : "収録BPMを再推定中…",
         });
         onChange((previous) =>
           previous.kind === "manual"
@@ -146,50 +144,70 @@ export const RecordingTempoField = ({
     onChange,
   ]);
 
+  let status = "";
+  if (state.kind === "loading") {
+    status = state.message;
+  } else if (value.kind === "manual") {
+    status = "手入力された値を使用中";
+  } else if (state.kind === "estimated") {
+    status = `自動推定された値です（${state.recordings}件の録音から算出）`;
+  } else if (state.kind === "unavailable") {
+    status = `${unavailableMessages[state.reason]}（既定値 120 を適用中）`;
+  } else {
+    status = `収録BPMの推定に失敗しました: ${state.message}`;
+  }
   return (
-    <div className="flex flex-col gap-2">
-      <MsField
-        label="収録BPM"
-        value={value.bpm}
-        onCommit={(bpm) => {
-          onChange({ kind: "manual", bpm });
-        }}
-        swatch={null}
-        isDisabled={isDisabled}
-      />
-      <output className="text-xs text-slate-400">
-        {value.kind === "manual" ? "手入力のBPMを使用します。" : null}
-        {state.kind === "loading" ? state.message : null}
-        {state.kind === "estimated"
-          ? `推定値: ${state.bpm} BPM（${state.recordings}録音）。手入力で変更できます。`
-          : null}
-        {state.kind === "unavailable"
-          ? `${unavailableMessages[state.reason]} 収録BPMは手入力できます（初期値120）。`
-          : null}
-        {state.kind === "error"
-          ? `BPM推定に失敗しました: ${state.message} 手入力で指定できます。`
-          : null}
-      </output>
-      <div className="flex gap-2">
-        <Button
-          isDisabled={isDisabled || state.kind === "loading"}
-          onPress={() => {
-            setRetry(retry + 1);
-          }}
-        >
-          BPMを再推定
-        </Button>
-        {state.kind === "estimated" && value.kind === "manual" ? (
-          <Button
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-end gap-1">
+        <div className="min-w-0 flex-1">
+          <MsField
+            label="収録BPM"
+            value={value.bpm}
+            onCommit={(bpm) => {
+              onChange({ kind: "manual", bpm });
+            }}
+            swatch={null}
             isDisabled={isDisabled}
+          />
+        </div>
+        <Tip text="収録BPMを再推定">
+          <Button
+            aria-label="収録BPMを再推定"
+            tone="ghost"
+            isDisabled={isDisabled || state.kind === "loading"}
             onPress={() => {
-              onChange({ kind: "estimated", bpm: state.bpm });
+              setRetry(retry + 1);
             }}
           >
-            推定値を使う
+            <RefreshCw
+              className={
+                state.kind === "loading" ? "size-3.5 animate-spin" : "size-3.5"
+              }
+            />
           </Button>
-        ) : null}
+        </Tip>
       </div>
+      <output
+        className={
+          state.kind === "error" || state.kind === "unavailable"
+            ? "text-[11px] text-amber-300"
+            : "text-[11px] text-slate-400"
+        }
+      >
+        {status}
+      </output>
+      {state.kind === "estimated" && value.kind === "manual" ? (
+        <Button
+          className="self-start"
+          tone="ghost"
+          isDisabled={isDisabled}
+          onPress={() => {
+            onChange({ kind: "estimated", bpm: state.bpm });
+          }}
+        >
+          推定値（{state.bpm}）に戻す
+        </Button>
+      ) : null}
     </div>
   );
 };

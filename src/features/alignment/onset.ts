@@ -58,7 +58,7 @@ const findVoicing = ({
     if (clarity >= 0.9 && pitch >= 60 && pitch <= 1200) {
       first ??= at;
       consecutive += 1;
-      if (consecutive >= 3 && first !== undefined) {
+      if (consecutive >= 3) {
         return Math.round((first + width / 2) / rate / 0.005) * 0.005;
       }
     } else {

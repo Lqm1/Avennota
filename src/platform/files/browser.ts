@@ -255,8 +255,7 @@ const createBrowserRecoveryStore = (): RecoveryStore => ({
     };
     try {
       const collection = await recoveryCollection();
-      // Native handles must reach IndexedDB's structured clone intact.
-      // A collection update draft deep-clones them as plain objects.
+      // updateの下書きはネイティブのハンドルを通常のオブジェクトへ複製するため、IndexedDBへそのまま渡す。
       await collection.utils.importData([
         ...[...collection.values()].filter((value) => value.id !== record.id),
         stored,

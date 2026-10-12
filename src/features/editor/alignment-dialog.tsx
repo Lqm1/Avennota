@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ProgressBar } from "react-aria-components";
 
 import { Button } from "../../components/ui/button";
 import { Check } from "../../components/ui/check";
@@ -27,7 +28,7 @@ import { regularizeRepeatedVowels } from "../alignment/rhythm";
 import type { BoundaryCorrection } from "../alignment/rhythm";
 import type { AcousticModel } from "../alignment/types";
 import { decodeBytes, guessEncoding } from "../oto/encoding";
-import type { OtoSet } from "../oto/oto-set";
+import type { OtoSet, ParsedOtoLine } from "../oto/oto-set";
 import {
   formatNumber,
   isOtoLine,
@@ -35,6 +36,7 @@ import {
   PARAM_LABELS,
 } from "../oto/oto-set";
 import { LabelExport } from "./label-export";
+import { ParamSwatch } from "./param-swatch";
 import { RecordingTempoField } from "./recording-tempo";
 import type { RecordingTempo } from "./recording-tempo";
 import { showEditorPanel } from "./settings";
@@ -47,20 +49,22 @@ import {
 } from "./store";
 import type { Session } from "./store";
 
+type ApplyMode = "generate" | "update";
+interface ResultState {
+  kind: "result";
+  before: OtoSet;
+  after: OtoSet;
+  session: Session;
+  count: number;
+  recordings: LabelRecording[];
+  corrections: BoundaryCorrection[];
+  onsetCorrections: { wav: string; before: number; after: number }[];
+}
 type RunState =
   | { kind: "idle" }
-  | { kind: "running"; message: string }
+  | { kind: "running"; message: string; completed: number; total: number }
   | { kind: "error"; message: string }
-  | {
-      kind: "result";
-      before: OtoSet;
-      after: OtoSet;
-      session: Session;
-      count: number;
-      recordings: LabelRecording[];
-      corrections: BoundaryCorrection[];
-      onsetCorrections: { wav: string; before: number; after: number }[];
-    };
+  | ResultState;
 
 const formats = [
   { id: "cv", label: "単独音（CV）" },
@@ -68,12 +72,19 @@ const formats = [
   { id: "cvvc", label: "CVVC" },
 ] satisfies { id: VoicebankFormat; label: string }[];
 const modes = [
-  { id: "update", label: "既存エイリアスの値を補正" },
-  { id: "generate", label: "対象WAVの原音設定行を生成・置き換え" },
-] satisfies { id: "generate" | "update"; label: string }[];
+  { id: "update", label: "既存行の値を補正" },
+  { id: "generate", label: "設定行を新規再生成" },
+] satisfies { id: ApplyMode; label: string }[];
+const modeHints: Record<ApplyMode, string> = {
+  update:
+    "WAVファイル名とエイリアスが一致する既存行の設定値のみを更新します。コメントや行順は維持されます。",
+  generate:
+    "対象WAVの既存行を削除し、推定結果をもとに原音設定行を新しく生成し直します。",
+};
 const textOf = (bytes: Uint8Array<ArrayBuffer>) =>
   decodeBytes(bytes, guessEncoding(bytes).encoding);
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
+const PREVIEW_LIMIT = 100;
 const runInferenceTask = async (
   task: () => Promise<void>,
   onError: (error: unknown) => void,
@@ -87,6 +98,418 @@ const runInferenceTask = async (
     onFinish();
   }
 };
+const toggled = <T,>(set: ReadonlySet<T>, value: T, on: boolean): Set<T> => {
+  const next = new Set(set);
+  if (on) {
+    next.add(value);
+  } else {
+    next.delete(value);
+  }
+  return next;
+};
+
+const Section = ({
+  title,
+  action = null,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="flex min-w-0 flex-col gap-3">
+    <div className="flex min-h-7 items-center justify-between gap-2">
+      <h3 className="text-xs font-semibold text-slate-400">{title}</h3>
+      {action}
+    </div>
+    {children}
+  </section>
+);
+
+const Hint = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-[11px] leading-relaxed text-slate-400">{children}</p>
+);
+
+const FileRow = ({
+  name,
+  detail,
+  status,
+  isSet,
+  onPick,
+  onClear,
+  pickLabel = "選択",
+  clearLabel = "解除",
+}: {
+  name: string;
+  detail: string;
+  status: string;
+  isSet: boolean;
+  onPick: () => void;
+  onClear: () => void;
+  pickLabel?: string;
+  clearLabel?: string;
+}) => (
+  <li className="flex items-center gap-3 px-3 py-2">
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-xs text-slate-200">{name}</p>
+      <p className="truncate text-[11px] text-slate-400">
+        {detail}・<span className={isSet ? "text-accent" : ""}>{status}</span>
+      </p>
+    </div>
+    {isSet ? (
+      <Button tone="ghost" onPress={onClear}>
+        {clearLabel}
+      </Button>
+    ) : null}
+    <Button onPress={onPick}>{isSet ? "変更" : pickLabel}</Button>
+  </li>
+);
+
+const Progress = ({
+  message,
+  completed,
+  total,
+}: {
+  message: string;
+  completed: number;
+  total: number;
+}) => (
+  <ProgressBar
+    aria-label="自動推定の進捗"
+    className="flex min-w-0 flex-1 flex-col gap-1.5"
+    isIndeterminate={total === 0}
+    maxValue={Math.max(1, total)}
+    value={completed}
+  >
+    {({ percentage, valueText }) => (
+      <>
+        <span className="flex gap-2 text-xs text-slate-200">
+          <span className="truncate">{message}</span>
+          {total === 0 ? null : (
+            <span className="ml-auto shrink-0 text-slate-400 tabular-nums">
+              {completed} / {total}（{valueText}）
+            </span>
+          )}
+        </span>
+        <span className="block h-1 overflow-hidden rounded bg-white/10">
+          <span
+            className={
+              total === 0
+                ? "bg-accent block h-full w-1/3 animate-pulse"
+                : "bg-accent block h-full transition-[width]"
+            }
+            style={total === 0 ? undefined : { width: `${percentage ?? 0}%` }}
+          />
+        </span>
+      </>
+    )}
+  </ProgressBar>
+);
+
+const Footer = ({ children }: { children: React.ReactNode }) => (
+  <div className="border-line bg-panel sticky -bottom-5 z-10 -mb-5 flex items-center gap-2 border-t pt-3 pb-5">
+    {children}
+  </div>
+);
+
+const WavList = ({
+  wavs,
+  selected,
+  onSelect,
+  transcripts,
+  onTranscript,
+  filenameSuffix,
+}: {
+  wavs: string[];
+  selected: ReadonlySet<string>;
+  onSelect: (selected: Set<string>) => void;
+  transcripts: ReadonlyMap<string, string>;
+  onTranscript: (wav: string, value: string) => void;
+  filenameSuffix: string;
+}) => {
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(wavs.length / PAGE_SIZE));
+  return (
+    <Section
+      title={`対象WAVファイル（${selected.size} / ${wavs.length}）`}
+      action={
+        <div className="flex gap-1">
+          <Button
+            tone="ghost"
+            onPress={() => {
+              onSelect(new Set(wavs));
+            }}
+          >
+            すべて選択
+          </Button>
+          <Button
+            tone="ghost"
+            onPress={() => {
+              onSelect(new Set());
+            }}
+          >
+            選択を解除
+          </Button>
+        </div>
+      }
+    >
+      <Hint>
+        ファイル名から発音（仮名）を自動判定しています。実際の発音と異なる場合は直接入力して修正してください（index.csv
+        が指定されている録音は、その音素列が優先されます）。
+      </Hint>
+      <div className="border-line overflow-hidden rounded border">
+        <div className="grid grid-cols-2 gap-3 bg-black/20 px-3 py-1.5 text-[11px] text-slate-400">
+          <span>WAVファイル名</span>
+          <span>発音（仮名）</span>
+        </div>
+        <ul className="divide-y divide-white/5">
+          {wavs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((wav) => (
+            <li
+              key={wav}
+              className="grid grid-cols-2 items-center gap-3 px-3 py-1"
+            >
+              <div className="min-w-0 truncate">
+                <Check
+                  label={wav}
+                  value={selected.has(wav)}
+                  onChange={(on) => {
+                    onSelect(toggled(selected, wav, on));
+                  }}
+                />
+              </div>
+              <CommitTextField
+                label={`${wav}の発音（仮名）`}
+                hideLabel
+                value={
+                  transcripts.get(wav) ??
+                  transcriptionFromFilename(wav, filenameSuffix)
+                }
+                onCommit={(value) => {
+                  onTranscript(wav, value);
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+        {pages > 1 ? (
+          <div className="border-line flex items-center justify-end gap-2 border-t px-3 py-1.5">
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              {page + 1} / {pages}ページ
+            </span>
+            <Button
+              tone="ghost"
+              isDisabled={page === 0}
+              onPress={() => {
+                setPage(page - 1);
+              }}
+            >
+              前へ
+            </Button>
+            <Button
+              tone="ghost"
+              isDisabled={page + 1 >= pages}
+              onPress={() => {
+                setPage(page + 1);
+              }}
+            >
+              次へ
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+};
+
+const Notice = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <details className="group px-3 py-2 text-xs">
+    <summary className="cursor-default text-amber-200 marker:text-slate-500">
+      {title}
+    </summary>
+    <ul className="mt-2 max-h-40 overflow-auto font-mono text-[11px] text-slate-300">
+      {children}
+    </ul>
+  </details>
+);
+
+const ChangedLines = ({ lines }: { lines: ParsedOtoLine[] }) => (
+  <Section
+    title={`変更される設定行（${lines.length}行）`}
+    action={
+      lines.length > PREVIEW_LIMIT ? (
+        <span className="text-[11px] text-slate-400">
+          先頭 {PREVIEW_LIMIT} 行を表示中
+        </span>
+      ) : null
+    }
+  >
+    <div className="border-line max-h-80 overflow-auto rounded border">
+      <table className="w-full text-xs tabular-nums">
+        <caption className="sr-only">変更される設定行</caption>
+        <thead className="bg-panel sticky top-0 text-[11px] text-slate-400">
+          <tr className="border-line border-b">
+            <th className="px-2 py-1.5 text-left font-normal">WAVファイル</th>
+            <th className="px-2 py-1.5 text-left font-normal">エイリアス</th>
+            {PARAM_KEYS.map((key) => (
+              <th
+                key={key}
+                className="px-2 py-1.5 text-right font-normal whitespace-nowrap"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <ParamSwatch param={key} />
+                  {PARAM_LABELS[key]}
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="text-slate-200">
+          {lines.slice(0, PREVIEW_LIMIT).map((line) => (
+            <tr key={line.id} className="border-b border-white/5">
+              <td className="max-w-40 truncate px-2 py-1 text-slate-400">
+                {line.parsed.oto.wav}
+              </td>
+              <th className="px-2 py-1 text-left font-normal whitespace-nowrap">
+                {line.parsed.oto.alias}
+              </th>
+              {PARAM_KEYS.map((key) => (
+                <td key={key} className="px-2 py-1 text-right font-mono">
+                  {formatNumber(line.parsed.oto[key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </Section>
+);
+
+const ResultView = ({
+  result,
+  mode,
+  onBack,
+  onApply,
+  onClose,
+}: {
+  result: ResultState;
+  mode: ApplyMode;
+  onBack: () => void;
+  onApply: () => void;
+  onClose: () => void;
+}) => {
+  const preview = useMemo(() => {
+    const before = new Map(result.before.lines.map((line) => [line.id, line]));
+    const after = new Set(result.after.lines.map((line) => line.id));
+    return {
+      changed: result.after.lines
+        .filter(isOtoLine)
+        .filter((line) => before.get(line.id) !== line),
+      removed: result.before.lines
+        .filter(isOtoLine)
+        .filter((line) => !after.has(line.id)),
+    };
+  }, [result]);
+  const unchanged = result.after === result.before;
+  const notices =
+    preview.removed.length +
+    result.onsetCorrections.length +
+    result.corrections.length;
+  return (
+    <div className="flex flex-col gap-6">
+      <dl className="grid grid-cols-3 gap-2">
+        {[
+          { label: "推定対象WAV", value: result.count },
+          { label: "変更される行", value: preview.changed.length },
+          { label: "削除される行", value: preview.removed.length },
+        ].map(({ label, value }) => (
+          <div
+            key={label}
+            className="border-line rounded border bg-black/15 px-3 py-2"
+          >
+            <dt className="text-[11px] text-slate-400">{label}</dt>
+            <dd className="text-lg text-slate-100 tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {unchanged ? (
+        <p className="border-line rounded border px-3 py-2 text-xs text-slate-300">
+          {mode === "generate"
+            ? "現在の原音設定と推定結果が同一のため、変更はありません。"
+            : "補正対象となる行がありません（現在の設定値と同一か、WAVファイル名とエイリアスが一致する行が存在しません）。"}
+        </p>
+      ) : null}
+      {notices > 0 ? (
+        <Section title="確認事項">
+          <div className="border-line divide-y divide-white/5 rounded border">
+            {preview.removed.length > 0 ? (
+              <Notice
+                title={`再生成に伴い削除される設定行（${preview.removed.length}行）`}
+              >
+                {preview.removed.slice(0, PREVIEW_LIMIT).map((line) => (
+                  <li key={line.id}>
+                    {line.parsed.oto.wav}: {line.parsed.oto.alias}
+                  </li>
+                ))}
+                {preview.removed.length > PREVIEW_LIMIT ? (
+                  <li>…他 {preview.removed.length - PREVIEW_LIMIT} 行</li>
+                ) : null}
+              </Notice>
+            ) : null}
+            {result.onsetCorrections.length > 0 ? (
+              <Notice
+                title={`単独音（CV）の基準位置を有声開始に合わせて補正（${result.onsetCorrections.length}件）`}
+              >
+                {result.onsetCorrections.map((correction) => (
+                  <li key={correction.wav}>
+                    {correction.wav}: {formatNumber(correction.before * 1000)} →{" "}
+                    {formatNumber(correction.after * 1000)} ms
+                  </li>
+                ))}
+              </Notice>
+            ) : null}
+            {result.corrections.length > 0 ? (
+              <Notice
+                title={`同一母音連続の境界を収録BPMで補正（${result.corrections.length}件）`}
+              >
+                {result.corrections.map((correction) => (
+                  <li key={`${correction.wav}:${correction.before}`}>
+                    {correction.wav}（{correction.phone}）:{" "}
+                    {formatNumber(correction.before * 1000)} →{" "}
+                    {formatNumber(correction.after * 1000)} ms
+                  </li>
+                ))}
+              </Notice>
+            ) : null}
+          </div>
+        </Section>
+      ) : null}
+      {preview.changed.length > 0 ? (
+        <ChangedLines lines={preview.changed} />
+      ) : null}
+      <LabelExport
+        recordings={result.recordings}
+        folder={result.session.folder}
+      />
+      <Footer>
+        <Button onPress={onBack}>設定に戻る</Button>
+        <span className="ml-auto text-[11px] text-slate-400">
+          反映後も「元に戻す」（Ctrl+Z）で一括して取り消せます
+        </span>
+        <Button onPress={onClose}>破棄して閉じる</Button>
+        <Button tone="primary" isDisabled={unchanged} onPress={onApply}>
+          原音設定に反映する
+        </Button>
+      </Footer>
+    </div>
+  );
+};
 
 export const AlignmentDialog = () => {
   const workspace = useEditor((state) => state.workspace);
@@ -99,13 +522,15 @@ export const AlignmentDialog = () => {
         : [],
     [workspace]
   );
-  const [selected, setSelected] = useState(() => new Set(wavs));
+  const [selected, setSelected] = useState<ReadonlySet<string>>(
+    () => new Set(wavs)
+  );
   const [transcripts, setTranscripts] = useState(new Map<string, string>());
   const [index, setIndex] = useState(new Map<string, string[]>());
-  const [outputFormats, setOutputFormats] = useState(
-    () => new Set<VoicebankFormat>(["vcv"])
-  );
-  const [mode, setMode] = useState<"generate" | "update">(
+  const [outputFormats, setOutputFormats] = useState<
+    ReadonlySet<VoicebankFormat>
+  >(() => new Set<VoicebankFormat>(["vcv"]));
+  const [mode, setMode] = useState<ApplyMode>(
     workspace.kind === "open" && workspace.session.baseline !== null
       ? "update"
       : "generate"
@@ -126,7 +551,6 @@ export const AlignmentDialog = () => {
   const [cvTimings, setCvTimings] = useState(new Map<string, CvTiming>());
   const [customModel, setCustomModel] = useState<AcousticModel | null>(null);
   const [state, setState] = useState<RunState>({ kind: "idle" });
-  const [page, setPage] = useState(0);
   const active = useRef<AbortController | null>(null);
   const running = state.kind === "running";
 
@@ -188,7 +612,12 @@ export const AlignmentDialog = () => {
     }
     const controller = new AbortController();
     active.current = controller;
-    setState({ kind: "running", message: "発音列を確認しています" });
+    const report = (message: string, completed = 0, total = 0) => {
+      if (!controller.signal.aborted) {
+        setState({ kind: "running", message, completed, total });
+      }
+    };
+    report("発音テキストを確認中…");
     await runInferenceTask(
       async () => {
         const recordings = await readRecordingTranscripts({
@@ -199,10 +628,7 @@ export const AlignmentDialog = () => {
           filenameSuffix,
         });
         controller.signal.throwIfAborted();
-        setState({
-          kind: "running",
-          message: "音響モデルを読み込んでいます（初回は取得します）",
-        });
+        report("音響モデルを読み込み中…");
         const model =
           customModel ?? (await loadJapaneseModel(controller.signal));
         const aligned = await inferRecordings({
@@ -213,20 +639,10 @@ export const AlignmentDialog = () => {
           signal: controller.signal,
           adapt,
           onTrainingProgress: (completed, total) => {
-            if (!controller.signal.aborted) {
-              setState({
-                kind: "running",
-                message: `音源にモデルを適合させています　${completed} / ${total}`,
-              });
-            }
+            report("音源に合わせてモデルを追加学習中…", completed, total);
           },
           onProgress: (completed, total, wav) => {
-            if (!controller.signal.aborted) {
-              setState({
-                kind: "running",
-                message: `${completed} / ${total} WAV　${wav}`,
-              });
-            }
+            report(`音素境界を推定中: ${wav}`, completed, total);
           },
         });
         const adjusted = aligned.map((recording) =>
@@ -297,398 +713,243 @@ export const AlignmentDialog = () => {
     ) {
       setState({
         kind: "error",
-        message: "編集内容が変わりました。再度推定してください。",
+        message:
+          "推定処理の実行中にエディターの編集内容が変更されました。お手数ですが、再度推定を実行してください。",
       });
       return;
     }
     transformOtoSet(() => state.after);
     notify(
       "info",
-      `${state.count}件のWAVの自動推定を反映しました。波形で確認し、必要なら修正して保存してください。Undoでまとめて戻せます。`
+      `${state.count}件のWAVファイルの推定結果を反映しました。波形画面で設定値を確認の上、保存してください（元に戻す操作で一括取り消しが可能です）。`
     );
     close();
   };
-  const preview = useMemo(() => {
-    if (state.kind !== "result") {
-      return { changed: [], removed: [] };
-    }
-    const before = new Map(state.before.lines.map((line) => [line.id, line]));
-    const after = new Set(state.after.lines.map((line) => line.id));
-    return {
-      changed: state.after.lines
-        .filter(isOtoLine)
-        .filter((line) => before.get(line.id) !== line),
-      removed: state.before.lines
-        .filter(isOtoLine)
-        .filter((line) => !after.has(line.id)),
-    };
-  }, [state]);
-  const resultLines = preview.changed;
+  const ready =
+    selected.size > 0 && outputFormats.size > 0 && tempo.kind !== "estimating";
+  let idleMessage = `${selected.size}件のWAVファイルを推定します`;
+  if (selected.size === 0 || outputFormats.size === 0) {
+    idleMessage = "対象のWAVファイルと生成するエイリアス形式を選択してください";
+  } else if (tempo.kind === "estimating") {
+    idleMessage = "収録BPMを推定中です。完了までお待ちください";
+  }
   return (
-    <EditorDialog title="原音設定の自動推定" onClose={close}>
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-slate-400">
-          SHIROで発音の境界を推定します。結果を反映するまで編集内容は変わりません。音源ファイルへの書き込みは保存時に行います。
-        </p>
-        {state.kind === "result" ? (
-          <>
-            <output className="text-sm text-slate-200">
-              {state.count} WAV、{resultLines.length}行の変更候補、
-              {preview.removed.length}行の削除候補
-            </output>
-            <LabelExport
-              recordings={state.recordings}
-              folder={state.session.folder}
-            />
-            {state.after === state.before ? (
-              <p className="text-xs text-slate-300">
-                {mode === "generate"
-                  ? "推定が完了しました。現在の原音設定と推定結果は同じです。"
-                  : "推定が完了しました。補正される行がありません。現在の数値が推定結果と同じか、補正対象のエイリアスが一致していません。"}
-              </p>
-            ) : null}
-            {preview.removed.length > 0 ? (
-              <details className="text-xs text-amber-200">
-                <summary>
-                  生成で置き換える既存行（{preview.removed.length}行）
-                </summary>
-                <ul className="mt-2 max-h-40 overflow-auto">
-                  {preview.removed.slice(0, 100).map((line) => (
-                    <li key={line.id}>
-                      {line.parsed.oto.wav}: {line.parsed.oto.alias}
-                    </li>
-                  ))}
-                </ul>
-                {preview.removed.length > 100 ? (
-                  <p>先頭100行を表示しています。</p>
-                ) : null}
-              </details>
-            ) : null}
-            {state.onsetCorrections.length > 0 ? (
-              <details className="text-xs text-amber-200">
-                <summary>
-                  単独音の母音開始を有声開始に合わせました（
-                  {state.onsetCorrections.length} WAV）
-                </summary>
-                <ul className="mt-2 max-h-40 overflow-auto">
-                  {state.onsetCorrections.map((correction) => (
-                    <li key={correction.wav}>
-                      {correction.wav}: {formatNumber(correction.before * 1000)}{" "}
-                      → {formatNumber(correction.after * 1000)} ms
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            {state.corrections.length > 0 ? (
-              <details className="text-xs text-amber-200">
-                <summary>
-                  同一母音の境界をBPMで補正しました（{state.corrections.length}
-                  箇所）
-                </summary>
-                <ul className="mt-2 max-h-40 overflow-auto">
-                  {state.corrections.map((correction) => (
-                    <li key={`${correction.wav}:${correction.before}`}>
-                      {correction.wav}（{correction.phone}）:{" "}
-                      {formatNumber(correction.before * 1000)} →{" "}
-                      {formatNumber(correction.after * 1000)} ms
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            <div className="max-h-80 overflow-auto">
-              <table className="w-full text-right text-xs tabular-nums">
-                <caption className="sr-only">
-                  自動推定結果（最初の100行）
-                </caption>
-                <thead>
-                  <tr>
-                    <th className="text-left">エイリアス</th>
-                    {PARAM_KEYS.map((key) => (
-                      <th key={key} className="p-1">
-                        {PARAM_LABELS[key]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultLines.slice(0, 100).map((line) => (
-                    <tr key={line.id}>
-                      <th
-                        className="p-1 text-left font-normal"
-                        title={line.parsed.oto.wav}
-                      >
-                        {line.parsed.oto.alias}
-                      </th>
-                      {PARAM_KEYS.map((key) => (
-                        <td key={key} className="p-1 font-mono">
-                          {formatNumber(line.parsed.oto[key])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {resultLines.length > 100 ? (
-              <p className="text-xs text-slate-400">
-                先頭100行を表示しています。反映後は一覧で全行を確認できます。
-              </p>
-            ) : null}
-            <div className="flex gap-2">
-              <Button
-                tone="primary"
-                isDisabled={state.after === state.before}
-                onPress={apply}
-              >
-                反映して波形で確認
-              </Button>
-              <Button
-                onPress={() => {
-                  setState({ kind: "idle" });
-                }}
-              >
-                設定へ戻る
-              </Button>
-              <Button onPress={close}>破棄して閉じる</Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <fieldset disabled={running} className="flex flex-col gap-4">
-              <legend className="sr-only">自動推定の設定</legend>
-              <Check
-                label="対象音源に合わせてモデルを学習する"
-                value={adapt}
-                onChange={setAdapt}
-              />
-              <p className="text-xs text-slate-400">
-                学習後に境界を再推定します。多様な発音の録音を選んでください。少数の録音では精度が下がる場合があります。
-              </p>
-              <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 text-xs text-slate-300">
-                  生成・補正するエイリアス（複数選択可）
-                </legend>
-                <div className="flex flex-wrap gap-4">
+    <EditorDialog
+      title="原音設定の自動推定"
+      onClose={close}
+      className="max-w-5xl"
+    >
+      {state.kind === "result" ? (
+        <ResultView
+          result={state}
+          mode={mode}
+          onBack={() => {
+            setState({ kind: "idle" });
+          }}
+          onApply={apply}
+          onClose={close}
+        />
+      ) : (
+        <div className="flex flex-col gap-5">
+          <p className="text-xs text-slate-400">
+            音声から音素境界を自動推定し、原音設定を生成・補正します。推定結果を確認してから反映でき、保存を実行するまで
+            oto.ini は上書きされません。
+          </p>
+          <fieldset
+            disabled={running}
+            className="grid min-w-0 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]"
+          >
+            <legend className="sr-only">自動推定の設定</legend>
+            <div className="flex min-w-0 flex-col gap-6">
+              <Section title="生成するエイリアス">
+                <div className="flex flex-wrap gap-x-5 gap-y-2">
                   {formats.map(({ id, label }) => (
                     <Check
                       key={id}
                       label={label}
                       value={outputFormats.has(id)}
-                      onChange={(value) => {
-                        setOutputFormats((previous) => {
-                          const next = new Set(previous);
-                          if (value) {
-                            next.add(id);
-                          } else {
-                            next.delete(id);
-                          }
-                          return next;
-                        });
+                      onChange={(on) => {
+                        setOutputFormats((previous) =>
+                          toggled(previous, id, on)
+                        );
                       }}
                     />
                   ))}
                 </div>
-                <p className="text-xs text-slate-400">
-                  収録形式にかかわらず、選んだエイリアスを同じ音素境界から作ります。CVVCにはCV・VC・VVを含み、形式間で共通するエイリアスは一度だけ出力します。
-                </p>
-              </fieldset>
-              <div className="grid grid-cols-2 gap-3">
-                <SelectField
-                  label="反映方法"
-                  value={mode}
-                  options={modes}
-                  onChange={setMode}
-                />
-                {workspace.kind === "open" ? (
-                  <RecordingTempoField
-                    folder={workspace.session.folder}
-                    wavs={selectedWavs}
-                    index={index}
-                    transcripts={transcripts}
-                    filenameSuffix={filenameSuffix}
-                    model={customModel}
-                    value={tempo}
-                    onChange={setTempo}
-                    isDisabled={running}
+                <Hint>
+                  複数の形式を同時に選択できます。形式間で共通するエイリアスは自動的に統合されます。
+                </Hint>
+                <div className="grid grid-cols-2 gap-3">
+                  <SelectField
+                    label="反映方法"
+                    value={mode}
+                    options={modes}
+                    onChange={setMode}
                   />
-                ) : null}
-                <MsField
-                  label="重複エイリアスの上限（0＝無制限）"
-                  value={limit}
-                  onCommit={(value) => {
-                    setLimit(Math.max(0, Math.trunc(value)));
-                  }}
-                  swatch={null}
-                  isDisabled={mode === "update"}
-                />
-                <CommitTextField
-                  label="WAV名から除く接尾辞"
-                  value={filenameSuffix}
-                  onCommit={setFilenameSuffix}
-                />
-                <CommitTextField
-                  label="エイリアスの接尾辞"
-                  value={suffix}
-                  onCommit={setSuffix}
-                />
-              </div>
-              <p className="text-xs text-slate-400">
-                生成では対象WAVの既存行を置き換えます。補正では一致した行の数値だけを変え、名前・コメント・行順を保ちます。
-                連続音とCVVCでは、同一母音の極端に短い分割を収録BPMで補います。
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onPress={() => {
-                    void readFile("index");
-                  }}
-                >
-                  index.csvを読み込む
-                </Button>
-                <Button
-                  onPress={() => {
-                    void readFile("timings");
-                  }}
-                >
-                  table.csvを読み込む
-                </Button>
-                <Button
-                  onPress={() => {
-                    void readFile("model");
-                  }}
-                >
-                  別のモデル・phonemapを選ぶ
-                </Button>
-              </div>
-              <p className="text-xs text-slate-400">
-                {customModel?.name ??
-                  "Intunist 日本語歌唱モデル（初回取得後はオフラインで利用）"}
-                。低い男声では推定精度が下がる場合があります。table.csv:{" "}
-                {cvTimings.size}音、index.csv: {index.size} WAV。
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-300">
-                  対象 {selected.size} / {wavs.length} WAV
-                </span>
-                <Button
-                  onPress={() => {
-                    setSelected(new Set(wavs));
-                  }}
-                >
-                  すべて選択
-                </Button>
-                <Button
-                  onPress={() => {
-                    setSelected(new Set());
-                  }}
-                >
-                  選択を解除
-                </Button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {wavs
-                  .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-                  .map((wav) => (
-                    <div
-                      key={wav}
-                      className="grid grid-cols-2 items-center gap-3"
-                    >
-                      <Check
-                        label={wav}
-                        value={selected.has(wav)}
-                        onChange={(value) => {
-                          setSelected((previous) => {
-                            const next = new Set(previous);
-                            if (value) {
-                              next.add(wav);
-                            } else {
-                              next.delete(wav);
-                            }
-                            return next;
-                          });
-                        }}
-                      />
-                      <CommitTextField
-                        label={`${wav}の発音列（仮名）`}
-                        hideLabel
-                        value={
-                          transcripts.get(wav) ??
-                          transcriptionFromFilename(wav, filenameSuffix)
-                        }
-                        onCommit={(value) => {
-                          setTranscripts((previous) =>
-                            new Map(previous).set(wav, value)
-                          );
-                        }}
-                      />
-                    </div>
-                  ))}
-              </div>
-              {wavs.length > PAGE_SIZE ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    isDisabled={page === 0}
-                    onPress={() => {
-                      setPage(page - 1);
-                    }}
-                  >
-                    前へ
-                  </Button>
-                  <span className="text-xs">
-                    {page + 1} / {Math.ceil(wavs.length / PAGE_SIZE)}
-                  </span>
-                  <Button
-                    isDisabled={(page + 1) * PAGE_SIZE >= wavs.length}
-                    onPress={() => {
-                      setPage(page + 1);
-                    }}
-                  >
-                    次へ
-                  </Button>
+                  <CommitTextField
+                    label="エイリアス接尾辞"
+                    value={suffix}
+                    onCommit={setSuffix}
+                  />
+                  {mode === "generate" ? (
+                    <MsField
+                      label="重複エイリアスの生成上限（0: 無制限）"
+                      value={limit}
+                      onCommit={(value) => {
+                        setLimit(Math.max(0, Math.trunc(value)));
+                      }}
+                      swatch={null}
+                    />
+                  ) : null}
                 </div>
-              ) : null}
-            </fieldset>
+                <Hint>{modeHints[mode]}</Hint>
+              </Section>
+              <Section title="収録設定">
+                <div className="grid grid-cols-2 items-start gap-3">
+                  {workspace.kind === "open" ? (
+                    <RecordingTempoField
+                      folder={workspace.session.folder}
+                      wavs={selectedWavs}
+                      index={index}
+                      transcripts={transcripts}
+                      filenameSuffix={filenameSuffix}
+                      model={customModel}
+                      value={tempo}
+                      onChange={setTempo}
+                      isDisabled={running}
+                    />
+                  ) : null}
+                  <CommitTextField
+                    label="ファイル名から除く接尾辞（音階等）"
+                    value={filenameSuffix}
+                    onCommit={setFilenameSuffix}
+                  />
+                </div>
+                <Hint>
+                  連続音・CVVCの各パラメータの算出や、同一母音が連続する箇所の境界補正に使用します。
+                </Hint>
+              </Section>
+              <Section title="音響モデル・参照ファイル">
+                <ul className="border-line divide-y divide-white/5 rounded border">
+                  <FileRow
+                    name={
+                      customModel?.name ?? "Intunist 日本語歌唱モデル（汎用）"
+                    }
+                    detail="音響モデル"
+                    status={
+                      customModel === null
+                        ? "標準モデル（自動取得）"
+                        : "カスタムモデル適用中"
+                    }
+                    isSet={customModel !== null}
+                    pickLabel="モデルを選択"
+                    clearLabel="標準モデルに戻す"
+                    onPick={() => {
+                      void readFile("model");
+                    }}
+                    onClear={() => {
+                      setCustomModel(null);
+                    }}
+                  />
+                  <FileRow
+                    name="index.csv"
+                    detail="発音・音素列対応表"
+                    status={
+                      index.size === 0
+                        ? "未指定（音源フォルダ内を自動使用）"
+                        : `${index.size}件の録音を指定中`
+                    }
+                    isSet={index.size > 0}
+                    pickLabel="ファイルを選択"
+                    onPick={() => {
+                      void readFile("index");
+                    }}
+                    onClear={() => {
+                      setIndex(new Map());
+                    }}
+                  />
+                  <FileRow
+                    name="table.csv"
+                    detail="単独音タイミング設定表"
+                    status={
+                      cvTimings.size === 0
+                        ? "未指定（音素境界から自動算出）"
+                        : `${cvTimings.size}音の設定を指定中`
+                    }
+                    isSet={cvTimings.size > 0}
+                    pickLabel="ファイルを選択"
+                    onPick={() => {
+                      void readFile("timings");
+                    }}
+                    onClear={() => {
+                      setCvTimings(new Map());
+                    }}
+                  />
+                </ul>
+                <Check
+                  label="音源の音声に合わせてモデルを追加学習（適応）する"
+                  value={adapt}
+                  onChange={setAdapt}
+                />
+                <Hint>
+                  追加学習を行う場合は、多様な発音を含む録音を選択してください。録音数が少ない場合や低音の音源では、かえって精度が低下することがあります。
+                </Hint>
+              </Section>
+            </div>
+            <WavList
+              wavs={wavs}
+              selected={selected}
+              onSelect={setSelected}
+              transcripts={transcripts}
+              onTranscript={(wav, value) => {
+                setTranscripts((previous) => new Map(previous).set(wav, value));
+              }}
+              filenameSuffix={filenameSuffix}
+            />
+          </fieldset>
+          <Footer>
+            {state.kind === "running" ? (
+              <Progress
+                message={state.message}
+                completed={state.completed}
+                total={state.total}
+              />
+            ) : null}
             {state.kind === "error" ? (
-              <p role="alert" className="text-xs text-red-300">
+              <p role="alert" className="min-w-0 flex-1 text-xs text-red-300">
                 {state.message}
               </p>
             ) : null}
-            {state.kind === "running" ? (
-              <output className="text-xs text-slate-200">
-                {state.message}
-              </output>
+            {state.kind === "idle" ? (
+              <span className="flex-1 text-[11px] text-slate-400">
+                {idleMessage}
+              </span>
             ) : null}
-            <div className="flex gap-2">
-              {running ? (
-                <Button
-                  onPress={() => {
-                    active.current?.abort();
-                    setState({ kind: "idle" });
-                  }}
-                >
-                  推定をキャンセル
-                </Button>
-              ) : (
-                <Button
-                  tone="primary"
-                  isDisabled={
-                    selected.size === 0 ||
-                    outputFormats.size === 0 ||
-                    tempo.kind === "estimating"
-                  }
-                  onPress={() => {
-                    void run();
-                  }}
-                >
-                  推定して結果を確認
-                </Button>
-              )}
-              <Button onPress={close}>閉じる</Button>
-            </div>
-          </>
-        )}
-      </div>
+            <Button onPress={close}>閉じる</Button>
+            {running ? (
+              <Button
+                tone="danger"
+                onPress={() => {
+                  active.current?.abort();
+                  setState({ kind: "idle" });
+                }}
+              >
+                処理を中止
+              </Button>
+            ) : (
+              <Button
+                tone="primary"
+                isDisabled={!ready}
+                onPress={() => {
+                  void run();
+                }}
+              >
+                自動推定を実行
+              </Button>
+            )}
+          </Footer>
+        </div>
+      )}
     </EditorDialog>
   );
 };
