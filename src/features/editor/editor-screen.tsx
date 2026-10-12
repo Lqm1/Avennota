@@ -4,6 +4,7 @@ import { PanelRightClose, PanelRightOpen, TriangleAlert } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 
+import { Button } from "../../components/ui/button";
 import { DialogHost } from "../../components/ui/dialog-host";
 import { SelectField } from "../../components/ui/field";
 import { ToolButton } from "../../components/ui/tool-button";
@@ -11,15 +12,22 @@ import { durationStore, EMPTY_DURATIONS } from "../audio/wav-cache";
 import { WavePlaceholder, WaveView } from "../audio/wave-view";
 import type { OtoEncoding } from "../oto/encoding";
 import { ENCODING_LABELS } from "../oto/encoding";
+import { AliasRulesDialog } from "./alias-rules-dialog";
 import { AlignmentDialog } from "./alignment-dialog";
 import { BulkDialog, AliasDialog } from "./bulk-dialog";
+import { ConversionDialog } from "./conversion-dialog";
+import { DuplicateDialog } from "./duplicate-dialog";
 import { FileDialog } from "./file-dialog";
 import { AddLine, Inspector } from "./inspector";
 import { OtoTable } from "./oto-table";
+import { ParameterDialog } from "./parameter-dialog";
+import { QueryDialog } from "./query-dialog";
 import { RecentFoldersDialog } from "./recent-folders-dialog";
+import { rowFilterStore } from "./row-filter";
 import { buildRows, rowMatches } from "./rows";
 import type { ParsedOtoRow } from "./rows";
 import { editorPanelStore, showEditorPanel, useSettings } from "./settings";
+import type { EditorPanel } from "./settings";
 import { SettingsDialog } from "./settings-dialog";
 import { StartScreen } from "./start-screen";
 import {
@@ -37,7 +45,6 @@ import { useDesktopFeatures } from "./use-desktop-features";
 import { useEditorShortcuts, useGlobalShortcuts } from "./use-editor-shortcuts";
 import { useMediaQuery } from "./use-media-query";
 import { useSessionGuards } from "./use-session-guards";
-import { ustFilterStore } from "./ust-filter";
 import { ViewDialog } from "./view-dialog";
 import { WavCutDialog } from "./wav-cut-dialog";
 import { WaveToolbar } from "./wave-toolbar";
@@ -113,6 +120,24 @@ const EncodingStatus = ({ workspace }: { workspace: OpenWorkspace }) => {
   );
 };
 
+const FilterStatus = () => {
+  const count = useSelector(rowFilterStore, (state) => state?.size ?? null);
+  return count === null ? null : (
+    <span className="flex shrink-0 items-center gap-1 text-sky-300">
+      絞り込み中（{count}行）
+      <Button
+        tone="ghost"
+        className="h-5 px-1.5 text-[11px]"
+        onPress={() => {
+          rowFilterStore.setState(() => null);
+        }}
+      >
+        解除
+      </Button>
+    </span>
+  );
+};
+
 const StatusBar = () => {
   const busy = useEditor((state) => state.busy);
   const workspace = useEditor((state) => state.workspace);
@@ -151,6 +176,7 @@ const StatusBar = () => {
           {workspace.history.present.otoSet.lines.length}行
         </span>
       ) : null}
+      <FilterStatus />
       {busy === "" ? null : (
         <span className="text-accent shrink-0">{busy}…</span>
       )}
@@ -222,11 +248,9 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
     () => buildRows(otoSet, session.wavs, durations),
     [otoSet, session.wavs, durations]
   );
-  const filter = useSelector(ustFilterStore, (state) => state);
+  const filter = useSelector(rowFilterStore, (state) => state);
   const tableRows = useDeferredValue(
-    filter === null
-      ? rows
-      : rows.filter((row) => row.kind === "oto" && filter.has(row.id))
+    filter === null ? rows : rows.filter((row) => filter.has(row.id))
   );
   const selectedRow = rows.find((row) => row.id === selectedId);
   const selectedWav =
@@ -412,6 +436,23 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
   );
 };
 
+const SIMPLE_DIALOGS = {
+  alias: AliasDialog,
+  aliasRules: AliasRulesDialog,
+  alignment: AlignmentDialog,
+  bulk: BulkDialog,
+  conversion: ConversionDialog,
+  duplicates: DuplicateDialog,
+  parameters: ParameterDialog,
+  query: QueryDialog,
+  tools: ToolsDialog,
+  wavCut: WavCutDialog,
+} satisfies Partial<Record<Exclude<EditorPanel, null>, React.ComponentType>>;
+const isSimplePanel = (
+  panel: EditorPanel
+): panel is keyof typeof SIMPLE_DIALOGS =>
+  panel !== null && Object.hasOwn(SIMPLE_DIALOGS, panel);
+
 export const EditorScreen = () => {
   const settings = useSettings();
   useDesktopFeatures();
@@ -420,6 +461,7 @@ export const EditorScreen = () => {
   const panel = useSelector(editorPanelStore, (state) => state);
   useSessionGuards();
   useGlobalShortcuts();
+  const SimpleDialog = isSimplePanel(panel) ? SIMPLE_DIALOGS[panel] : null;
   return (
     <div
       className="flex h-full flex-col"
@@ -447,12 +489,9 @@ export const EditorScreen = () => {
       panel === "nextSettings" ? (
         <SettingsDialog key={panel} mode={panel} />
       ) : null}
-      {panel === "bulk" ? <BulkDialog /> : null}
-      {panel === "alias" ? <AliasDialog /> : null}
+      {SimpleDialog === null ? null : <SimpleDialog />}
       {panel === "fileOpen" ? <FileDialog mode="open" /> : null}
       {panel === "fileSave" ? <FileDialog mode="save" /> : null}
-      {panel === "tools" ? <ToolsDialog /> : null}
-      {panel === "alignment" ? <AlignmentDialog /> : null}
       {panel === "recentFolders" ? (
         <RecentFoldersDialog
           onClose={() => {
@@ -463,7 +502,6 @@ export const EditorScreen = () => {
       {panel === "bpm" || panel === "opacity" ? (
         <ViewDialog mode={panel} />
       ) : null}
-      {panel === "wavCut" ? <WavCutDialog /> : null}
     </div>
   );
 };

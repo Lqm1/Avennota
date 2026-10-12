@@ -18,6 +18,7 @@ import {
   parseUstNotes,
   ustTargets,
 } from "./manual-tools";
+import { rowFilterStore } from "./row-filter";
 import { showEditorPanel } from "./settings";
 import {
   confirmDiscardChanges,
@@ -28,7 +29,6 @@ import {
   transformOtoSet,
   useEditor,
 } from "./store";
-import { ustFilterStore } from "./ust-filter";
 
 const close = () => {
   showEditorPanel(null);
@@ -109,7 +109,7 @@ export const ToolsDialog = () => {
           : annotated;
       });
       if (filter) {
-        ustFilterStore.setState(() => new Set(targets.keys()));
+        rowFilterStore.setState(() => new Set(targets.keys()));
       }
       notify("info", `${notes.length}件のUSTノートを読み込みました。`);
     } else if (kind === "comments") {
@@ -229,7 +229,7 @@ export const ToolsDialog = () => {
             </Button>
             <Button
               onPress={() => {
-                ustFilterStore.setState(() => null);
+                rowFilterStore.setState(() => null);
               }}
             >
               絞り込みを解除

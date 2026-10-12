@@ -37,7 +37,7 @@ import {
 } from "./history";
 import { deserializeOtoSet, serializeOtoSetForRecovery } from "./recovery-data";
 import type { RecoveryData } from "./recovery-data";
-import { ustFilterStore } from "./ust-filter";
+import { rowFilterStore, visibleLines } from "./row-filter";
 
 export const OTO_NAME = "oto.ini";
 export const BACKUP_SUFFIX = ".bak";
@@ -185,6 +185,28 @@ const commit = (workspace: OpenWorkspace, next: Snapshot): OpenWorkspace => {
   return { ...workspace, history: pushState(workspace.history, next) };
 };
 
+const nearestRemaining = (present: Snapshot, otoSet: OtoSet): string | null => {
+  if (otoSet.lines.some((line) => line.id === present.selectedId)) {
+    return present.selectedId;
+  }
+  const remaining = new Set(
+    otoSet.lines
+      .filter((line) => line.parsed.kind === "oto")
+      .map((line) => line.id)
+  );
+  const previous = present.otoSet.lines;
+  const index = previous.findIndex((line) => line.id === present.selectedId);
+  const candidates = [
+    ...previous.slice(index + 1),
+    ...previous.slice(0, Math.max(index, 0)).toReversed(),
+  ];
+  return (
+    candidates.find((line) => remaining.has(line.id))?.id ??
+    otoSet.lines.find((line) => remaining.has(line.id))?.id ??
+    null
+  );
+};
+
 /** 範囲編集も1回の履歴として保存する。元の行・バイトは未変更行で維持する。 */
 export const transformOtoSet = (
   transform: (otoSet: OtoSet) => OtoSet
@@ -195,12 +217,10 @@ export const transformOtoSet = (
     if (otoSet === present.otoSet) {
       return workspace;
     }
-    const selectedId = otoSet.lines.some(
-      (line) => line.id === present.selectedId
-    )
-      ? present.selectedId
-      : (otoSet.lines.find((line) => line.parsed.kind === "oto")?.id ?? null);
-    return commit(workspace, { otoSet, selectedId });
+    return commit(workspace, {
+      otoSet,
+      selectedId: nearestRemaining(present, otoSet),
+    });
   });
 };
 
@@ -339,7 +359,7 @@ export const duplicateLine = (lineId: OtoLine["id"]): void => {
     if (!source) {
       return workspace;
     }
-    const copy = createLine(source.text);
+    const copy = { ...createLine(source.text), comment: source.comment };
     return commit(workspace, {
       otoSet: insertLines(otoSet, index + 1, [copy]),
       selectedId: copy.id,
@@ -490,7 +510,7 @@ export const openVoiceFolder = async (
       // 復元データを記録できなくても編集と明示保存はできる。記録できないことは表示し続ける。
       recoveryError = `このフォルダの復元データは記録できません: ${errorText(error)}`;
     }
-    ustFilterStore.setState(() => null);
+    rowFilterStore.setState(() => null);
     const firstOto = otoSet.lines.find((line) => line.parsed.kind === "oto");
     const session: Session = {
       commentBaseline,
@@ -713,7 +733,7 @@ const hasControlCharacters = (name: string): boolean => {
   }
   return false;
 };
-const validIniName = (name: string): boolean =>
+export const validIniName = (name: string): boolean =>
   name.trim() !== "" &&
   !/[\\/<>:"|?*]/u.test(name) &&
   !hasControlCharacters(name) &&
@@ -961,20 +981,8 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
   }
 };
 
-/** 一覧に出す行。空行は保持するが一覧には出さない。 */
-export const listedLines = (otoSet: OtoSet): OtoLine[] =>
-  otoSet.lines.filter((line) => line.parsed.kind !== "blank");
-
 const lineWav = (line: OtoLine | undefined): string | null =>
   line?.parsed.kind === "oto" ? line.parsed.oto.wav.toLowerCase() : null;
-
-const navigationLines = (otoSet: OtoSet): OtoLine[] => {
-  const filter = ustFilterStore.state;
-  return listedLines(otoSet).filter(
-    (line) =>
-      filter === null || (line.parsed.kind === "oto" && filter.has(line.id))
-  );
-};
 
 export const selectRelative = (delta: number): void => {
   const { workspace } = get();
@@ -982,7 +990,7 @@ export const selectRelative = (delta: number): void => {
     return;
   }
   const { otoSet, selectedId } = workspace.history.present;
-  const lines = navigationLines(otoSet);
+  const lines = visibleLines(otoSet);
   const index = lines.findIndex((line) => line.id === selectedId);
   const next = lines[Math.max(0, Math.min(lines.length - 1, index + delta))];
   if (next) {
@@ -997,7 +1005,7 @@ export const selectRelativeWav = (delta: 1 | -1): void => {
     return;
   }
   const { otoSet, selectedId } = workspace.history.present;
-  const lines = navigationLines(otoSet);
+  const lines = visibleLines(otoSet);
   let index = lines.findIndex((line) => line.id === selectedId);
   const current = lineWav(lines[index]);
   while (index + delta >= 0 && index + delta < lines.length) {

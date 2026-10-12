@@ -35,35 +35,57 @@ export const continuousTiming = (bpm: number): OtoParams => {
   };
 };
 
-export const readCvTimingTable = (text: string): Map<string, CvTiming> => {
-  const table = new Map<string, CvTiming>();
+export interface SyllableTiming extends CvTiming {
+  syllable: string;
+  consonant: string;
+  consonantFromPreutter: number;
+}
+
+export const readSyllableTable = (text: string): SyllableTiming[] => {
+  const table: SyllableTiming[] = [];
   for (const [index, row] of text.split(/\r\n|\r|\n/u).entries()) {
     if (row.trim() === "") {
       continue;
     }
     const fields = row.split(",");
-    const alias = fields[0]?.trim();
+    const syllable = fields[0]?.trim();
+    const consonantFromPreutter = Number(fields[3]);
     const preutter = Number(fields[4]);
     const overlap = Number(fields[5]);
     if (
-      alias === undefined ||
-      alias === "" ||
+      syllable === undefined ||
+      syllable === "" ||
       fields.length < 6 ||
       fields[4]?.trim() === "" ||
       fields[5]?.trim() === "" ||
+      !Number.isFinite(consonantFromPreutter) ||
       !Number.isFinite(preutter) ||
       !Number.isFinite(overlap) ||
       preutter < 0 ||
       overlap > preutter
     ) {
       throw new Error(
-        `table.csvの${index + 1}行目を解釈できません。1列目の仮名と5・6列目の時間を確認してください。`
+        `table.csvの${index + 1}行目を解釈できません。1列目の仮名と4〜6列目の時間を確認してください。`
       );
     }
-    table.set(alias.normalize("NFKC"), { preutter, overlap });
+    table.push({
+      syllable,
+      consonant: fields[1]?.trim() ?? "",
+      consonantFromPreutter,
+      preutter,
+      overlap,
+    });
   }
   return table;
 };
+
+export const readCvTimingTable = (text: string): Map<string, CvTiming> =>
+  new Map(
+    readSyllableTable(text).map(({ syllable, preutter, overlap }) => [
+      syllable.normalize("NFKC"),
+      { preutter, overlap },
+    ])
+  );
 
 const vowelName = (name: string) => (name === "N" ? "n" : name.toLowerCase());
 const VOWELS = new Set(["a", "i", "u", "e", "o", "A", "I", "U", "E", "O", "N"]);

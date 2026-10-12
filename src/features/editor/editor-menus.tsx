@@ -530,6 +530,33 @@ export const ToolsMenu = () => {
         ]),
         { kind: "separator", id: "alias-separator" },
         action("alias", "エイリアス一括変更", panel("alias"), disabled),
+        submenu("batch", "原音設定の一括処理", [
+          action("query", "検索・置換・抽出", panel("query"), disabled),
+          action(
+            "alias-rules",
+            "規則でエイリアスを複製・置換",
+            panel("aliasRules"),
+            disabled
+          ),
+          action(
+            "duplicates",
+            "重複エイリアスの整理",
+            panel("duplicates"),
+            disabled
+          ),
+          action(
+            "parameters",
+            "先行発声・オーバーラップの調整",
+            panel("parameters"),
+            disabled
+          ),
+          action(
+            "conversion",
+            "連続音からCV・VCを追加",
+            panel("conversion"),
+            disabled
+          ),
+        ]),
         ...(isTauri()
           ? [
               action(
