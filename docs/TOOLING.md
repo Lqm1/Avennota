@@ -3,6 +3,7 @@
 - Bunはパッケージマネージャーとスクリプト実行だけに使う。依存は`bun.lock`（JS）と`src-tauri/Cargo.lock`（Rust）で固定する。
 - テストはVitest、型チェックは`tsc`。
 - 品質ツールはUltraciteのOxc構成（Oxlint + Oxfmt）。React・TanStack・Vitest向けの規則を使う。`src/routeTree.gen.ts`、`src-tauri/target`、`src-tauri/gen`は対象外。
+- Git管理下のテキストファイルは`.gitattributes`で改行をLFにそろえる。
 
 ## コマンド
 
