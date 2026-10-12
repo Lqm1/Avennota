@@ -1,5 +1,5 @@
 import type { Oto, OtoLine, OtoSet, ParsedOtoLine } from "../oto/oto-set";
-import { isOtoLine } from "../oto/oto-set";
+import { copyLine, formatOto, isOtoLine, setLineOto } from "../oto/oto-set";
 
 export type BatchScope = "all" | "visible" | "selection";
 
@@ -18,8 +18,6 @@ export interface BatchResult {
 }
 
 export const CONTINUOUS_ALIAS = /^(?<lead>[aiueonN-]) (?<body>.+)$/u;
-
-export const SMALL_KANA = "ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ";
 
 const SPECIAL = /[.*+?^${}()|[\]\\/]/gu;
 export const literalPattern = (text: string): string =>
@@ -43,76 +41,109 @@ export const targetLines = (
     (line): line is ParsedOtoLine => ids.has(line.id) && isOtoLine(line)
   );
 
-export const appendLines = (otoSet: OtoSet, lines: OtoLine[]): OtoSet =>
-  lines.length === 0
-    ? otoSet
-    : { ...otoSet, lines: [...otoSet.lines, ...lines] };
+export class BatchBuilder {
+  private readonly base: OtoSet;
+  private readonly entries: BatchEntry[] = [];
+  private readonly replaced = new Map<string, OtoLine>();
+  private readonly added: OtoLine[] = [];
+  private readonly removed = new Set<string>();
+
+  constructor(base: OtoSet) {
+    this.base = base;
+  }
+
+  change(line: ParsedOtoLine, after: Oto, note = ""): void {
+    this.record("change", line, line.parsed.oto, after, note);
+    this.replaced.set(line.id, setLineOto(line, after));
+  }
+
+  changeComment(line: ParsedOtoLine, comment: string, note: string): void {
+    this.record("change", line, line.parsed.oto, line.parsed.oto, note);
+    this.replaced.set(line.id, { ...line, comment });
+  }
+
+  add(source: ParsedOtoLine, after: Oto, note: string): void {
+    this.record("add", source, source.parsed.oto, after, note);
+    this.added.push(copyLine(source, formatOto(after)));
+  }
+
+  remove(line: OtoLine, note: string): void {
+    const before = isOtoLine(line) ? line.parsed.oto : null;
+    this.record("delete", line, before, null, note);
+    this.removed.add(line.id);
+  }
+
+  skip(line: ParsedOtoLine, after: Oto | null, note: string): void {
+    this.record("skip", line, line.parsed.oto, after, note);
+  }
+
+  error(line: ParsedOtoLine, after: Oto | null, note: string): void {
+    this.record("error", line, line.parsed.oto, after, note);
+  }
+
+  build(): BatchResult {
+    const { base, entries } = this;
+    if (
+      this.replaced.size === 0 &&
+      this.added.length === 0 &&
+      this.removed.size === 0
+    ) {
+      return { base, otoSet: base, entries };
+    }
+    const lines = base.lines
+      .filter((line) => !this.removed.has(line.id))
+      .map((line) => this.replaced.get(line.id) ?? line);
+    return {
+      base,
+      otoSet: { ...base, lines: [...lines, ...this.added] },
+      entries,
+    };
+  }
+
+  private record(
+    kind: BatchEntry["kind"],
+    line: OtoLine,
+    before: Oto | null,
+    after: Oto | null,
+    note: string
+  ): void {
+    this.entries.push({ kind, lineId: line.id, before, after, note });
+  }
+}
 
 export const deleteLines = (
   otoSet: OtoSet,
   ids: ReadonlySet<string>,
   allowLastRow: boolean
 ): BatchResult => {
-  const remaining = new Map<string, number>();
+  const kept = new Set<string>();
   for (const line of otoSet.lines) {
-    if (isOtoLine(line)) {
-      const wav = line.parsed.oto.wav.toLowerCase();
-      remaining.set(wav, (remaining.get(wav) ?? 0) + 1);
+    if (isOtoLine(line) && !ids.has(line.id)) {
+      kept.add(line.parsed.oto.wav.toLowerCase());
     }
   }
-  const entries: BatchEntry[] = [];
-  const removed = new Set<string>();
-  for (const line of otoSet.lines.toReversed()) {
+  const builder = new BatchBuilder(otoSet);
+  for (const line of otoSet.lines) {
     if (!ids.has(line.id)) {
       continue;
     }
     if (!isOtoLine(line)) {
-      removed.add(line.id);
-      entries.push({
-        kind: "delete",
-        lineId: line.id,
-        before: null,
-        after: null,
-        note: line.text,
-      });
+      builder.remove(line, line.text);
       continue;
     }
-    const { oto } = line.parsed;
-    const wav = oto.wav.toLowerCase();
-    const count = remaining.get(wav) ?? 0;
-    const last = count <= 1;
-    if (last && !allowLastRow) {
-      entries.push({
-        kind: "skip",
-        lineId: line.id,
-        before: oto,
-        after: null,
-        note: "このWAVの最後の行です",
-      });
+    const wav = line.parsed.oto.wav.toLowerCase();
+    if (kept.has(wav)) {
+      builder.remove(line, "");
       continue;
     }
-    remaining.set(wav, count - 1);
-    removed.add(line.id);
-    entries.push({
-      kind: "delete",
-      lineId: line.id,
-      before: oto,
-      after: null,
-      note: last ? "このWAVの原音設定がなくなります" : "",
-    });
+    kept.add(wav);
+    if (allowLastRow) {
+      builder.remove(line, "このWAVの原音設定がなくなります");
+    } else {
+      builder.skip(line, null, "このWAVの最後の行です");
+    }
   }
-  entries.reverse();
-  return {
-    base: otoSet,
-    otoSet:
-      removed.size === 0
-        ? otoSet
-        : {
-            ...otoSet,
-            lines: otoSet.lines.filter((line) => !removed.has(line.id)),
-          },
-    entries,
-  };
+  return builder.build();
 };
 
 export const countEntries = (

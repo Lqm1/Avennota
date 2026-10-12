@@ -1,30 +1,31 @@
-import { parseMorae } from "../alignment/japanese";
-import type { CvTiming, SyllableTiming } from "../alignment/oto-generation";
+import { continuesSyllable, parseMorae } from "../alignment/japanese";
+import type { CvTiming } from "../alignment/oto-generation";
+import type {
+  SyllableTable,
+  SyllableTiming,
+} from "../alignment/syllable-table";
 import { roundMs } from "../oto/geometry";
-import type { Oto, OtoLine, OtoParams, OtoSet } from "../oto/oto-set";
+import type { OtoParams, OtoSet, ParsedOtoLine } from "../oto/oto-set";
 import {
   aliasCounts,
-  copyLine,
   effectiveAlias,
-  formatOto,
   PARAM_KEYS,
   withParams,
 } from "../oto/oto-set";
 import {
   aliasProblem,
-  appendLines,
+  BatchBuilder,
   CONTINUOUS_ALIAS,
-  SMALL_KANA,
   targetLines,
 } from "./batch";
-import type { BatchEntry, BatchResult } from "./batch";
+import type { BatchResult } from "./batch";
 import { keepPreutterAt, layoutProblem } from "./parameter-transforms";
 
 export interface ConversionOptions {
   cv: boolean;
   cvSource: "initial" | "all";
   vc: boolean;
-  table: readonly SyllableTiming[] | null;
+  table: SyllableTable | null;
   useTableConsonant: boolean;
   cvPreutter: number;
   cvOverlap: number;
@@ -56,26 +57,12 @@ const kanaConsonant = (syllable: string): string | null => {
   }
 };
 
-const followedBySmallKana = (body: string, length: number): boolean => {
-  const next = body.charAt(length);
-  return next !== "" && SMALL_KANA.includes(next);
-};
-
 const splitSyllable = (
   body: string,
-  table: readonly SyllableTiming[] | null
+  table: SyllableTable | null
 ): Omit<ContinuousAlias, "lead" | "suffix"> | null => {
   if (table !== null) {
-    let timing: SyllableTiming | null = null;
-    for (const entry of table) {
-      if (
-        body.startsWith(entry.syllable) &&
-        !followedBySmallKana(body, entry.syllable.length) &&
-        entry.syllable.length > (timing?.syllable.length ?? 0)
-      ) {
-        timing = entry;
-      }
-    }
+    const timing = table.longestPrefixOf(body);
     if (timing === null) {
       return null;
     }
@@ -88,7 +75,7 @@ const splitSyllable = (
   for (const length of [2, 1]) {
     const syllable = body.slice(0, length);
     const consonant = KANA.test(syllable) ? kanaConsonant(syllable) : null;
-    if (consonant !== null && !followedBySmallKana(body, length)) {
+    if (consonant !== null && !continuesSyllable(body, length)) {
       return { syllable, consonant, timing: null };
     }
   }
@@ -161,7 +148,7 @@ export const convertVoicebank = (
 ): BatchResult => {
   validateOptions(options);
   const known = aliasCounts(otoSet);
-  const entries: BatchEntry[] = [];
+  const builder = new BatchBuilder(otoSet);
   const sources = targetLines(otoSet, ids).flatMap((line) => {
     const { oto } = line.parsed;
     const head = splitLead(effectiveAlias(oto));
@@ -176,23 +163,11 @@ export const convertVoicebank = (
     }
     const syllable = splitSyllable(head.body, options.table);
     if (syllable === null) {
-      entries.push({
-        kind: "skip",
-        lineId: line.id,
-        before: oto,
-        after: null,
-        note: "音節表にない音節です",
-      });
+      builder.skip(line, null, "音節表にない音節です");
       return [];
     }
     if (PARAM_KEYS.some((key) => !Number.isFinite(oto[key]))) {
-      entries.push({
-        kind: "error",
-        lineId: line.id,
-        before: oto,
-        after: null,
-        note: "数値でない欄があります",
-      });
+      builder.error(line, null, "数値でない欄があります");
       return [];
     }
     const parsed: ContinuousAlias = {
@@ -200,32 +175,24 @@ export const convertVoicebank = (
       lead: head.lead,
       suffix: head.body.slice(syllable.syllable.length),
     };
-    return [{ line, oto, parsed }];
+    return [{ line, parsed }];
   });
-  const generated: OtoLine[] = [];
   const add = (
-    source: (typeof sources)[number],
+    line: ParsedOtoLine,
     alias: string,
     params: OtoParams,
     note: string
   ) => {
-    const after: Oto = withParams({ ...source.oto, alias }, params);
-    let problem = aliasProblem(alias) || layoutProblem(source.oto, params);
-    let kind: BatchEntry["kind"] = problem === "" ? "add" : "error";
-    if (kind === "add" && !options.allowDuplicates && known.has(alias)) {
-      kind = "skip";
-      problem = "同じエイリアスがあります";
-    }
-    entries.push({
-      kind,
-      lineId: source.line.id,
-      before: source.oto,
-      after,
-      note: problem || note,
-    });
-    if (kind === "add") {
+    const { oto } = line.parsed;
+    const after = withParams({ ...oto, alias }, params);
+    const problem = aliasProblem(alias) || layoutProblem(oto, params);
+    if (problem !== "") {
+      builder.error(line, after, problem);
+    } else if (!options.allowDuplicates && known.has(alias)) {
+      builder.skip(line, after, "同じエイリアスがあります");
+    } else {
       known.set(alias, (known.get(alias) ?? 0) + 1);
-      generated.push(copyLine(source.line, formatOto(after)));
+      builder.add(line, after, note);
     }
   };
   if (options.cv) {
@@ -234,17 +201,16 @@ export const convertVoicebank = (
       .toSorted(
         (a, b) => Number(b.parsed.lead === "-") - Number(a.parsed.lead === "-")
       );
-    for (const source of cvSources) {
-      const { parsed } = source;
+    for (const { line, parsed } of cvSources) {
       const timing = parsed.timing ?? {
         preutter: options.cvPreutter,
         overlap: options.cvOverlap,
       };
       add(
-        source,
+        line,
         parsed.syllable + parsed.suffix,
         cvParams(
-          source.oto,
+          line.parsed.oto,
           timing,
           options.useTableConsonant && parsed.timing !== null
             ? parsed.timing.consonantFromPreutter
@@ -255,16 +221,15 @@ export const convertVoicebank = (
     }
   }
   if (options.vc) {
-    for (const source of sources) {
-      const { parsed } = source;
+    for (const { line, parsed } of sources) {
       if (parsed.lead === "-" || parsed.consonant === "") {
         continue;
       }
       add(
-        source,
+        line,
         `${parsed.lead} ${parsed.consonant}${parsed.suffix}`,
         vcParams(
-          source.oto,
+          line.parsed.oto,
           parsed.timing?.preutter ?? options.consonantLength,
           options.shortenPlosive && PLOSIVES.has(parsed.consonant)
         ),
@@ -272,5 +237,5 @@ export const convertVoicebank = (
       );
     }
   }
-  return { base: otoSet, otoSet: appendLines(otoSet, generated), entries };
+  return builder.build();
 };

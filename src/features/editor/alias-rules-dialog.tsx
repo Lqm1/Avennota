@@ -6,11 +6,7 @@ import { EditorDialog } from "../../components/ui/editor-dialog";
 import { SelectField, TextAreaField } from "../../components/ui/field";
 import { pickDocument } from "../../platform/files/documents";
 import { decodeText } from "../oto/encoding";
-import {
-  duplicateByRules,
-  parseAliasRules,
-  renameByRules,
-} from "./alias-rules";
+import { AliasRules } from "./alias-rules";
 import type { AliasRuleMode } from "./alias-rules";
 import {
   BatchPreview,
@@ -45,14 +41,11 @@ export const AliasRulesDialog = () => {
     present === null || text.trim() === ""
       ? { result: null, error: "" }
       : tryPreview(() => {
-          const rules = parseAliasRules(text);
+          const rules = AliasRules.parse(text);
           const options = { mode, allowDuplicates };
           return operation === "duplicate"
-            ? duplicateByRules(present.otoSet, scope.ids, rules, options)
-            : renameByRules(present.otoSet, scope.ids, rules, {
-                ...options,
-                all,
-              });
+            ? rules.duplicate(present.otoSet, scope.ids, options)
+            : rules.rename(present.otoSet, scope.ids, { ...options, all });
         });
   return (
     <EditorDialog

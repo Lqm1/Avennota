@@ -1,21 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { readSyllableTable } from "../alignment/oto-generation";
+import { SyllableTable } from "../alignment/syllable-table";
 import { decodeBytes, encodeText } from "../oto/encoding";
 import type { OtoSet } from "../oto/oto-set";
 import { isOtoLine, parseOto, serializeOto } from "../oto/oto-set";
-import {
-  duplicateByRules,
-  parseAliasRules,
-  renameByRules,
-} from "./alias-rules";
+import { AliasRules } from "./alias-rules";
 import type { BatchResult } from "./batch";
 import { deleteLines } from "./batch";
 import { findDuplicateGroups, removeDuplicates } from "./duplicate-aliases";
 import { transformParameters } from "./parameter-transforms";
 import type { ParameterOperation } from "./parameter-transforms";
-import { extractLines, findMatches, replaceMatches } from "./row-query";
-import type { RowQuery } from "./row-query";
+import { extractLines, RowQuery } from "./row-query";
+import type { RowQueryOptions } from "./row-query";
 import { convertVoicebank } from "./voicebank-conversion";
 import type { ConversionOptions } from "./voicebank-conversion";
 
@@ -35,7 +31,7 @@ const aliasesOf = (set: OtoSet, ids: readonly string[]) =>
 const kinds = (result: BatchResult) =>
   result.entries.map((entry) => entry.kind);
 
-const query = (patch: Partial<RowQuery>): RowQuery => ({
+const query = (patch: Partial<RowQueryOptions>): RowQueryOptions => ({
   field: "alias",
   mode: "contains",
   text: "",
@@ -51,57 +47,72 @@ describe("検索・置換・抽出", () => {
 
   it("部分一致は直後の小書きかなを除けて探す", () => {
     expect(
-      aliasesOf(set, findMatches(set, all(set), query({ text: "き" })))
+      aliasesOf(
+        set,
+        new RowQuery(query({ text: "き" })).matchingIds(set, all(set))
+      )
     ).toStrictEqual(["a き", "a きゃ", ""]);
     expect(
       aliasesOf(
         set,
-        findMatches(set, all(set), query({ text: "き", excludeYoon: true }))
+        new RowQuery(query({ text: "き", excludeYoon: true })).matchingIds(
+          set,
+          all(set)
+        )
       )
     ).toStrictEqual(["a き", ""]);
     expect(
-      findMatches(set, all(set), query({ text: "き", mode: "exact" }))
+      new RowQuery(query({ text: "き", mode: "exact" })).matchingIds(
+        set,
+        all(set)
+      )
     ).toHaveLength(1);
   });
 
   it("大小文字の扱いと正規表現の構文エラーを区別する", () => {
-    expect(findMatches(set, all(set), query({ text: "a_c4" }))).toHaveLength(0);
     expect(
-      findMatches(set, all(set), query({ text: "a_c4", ignoreCase: true }))
-    ).toHaveLength(1);
+      new RowQuery(query({ text: "a_c4" })).matchingIds(set, all(set))
+    ).toHaveLength(0);
     expect(
-      findMatches(
+      new RowQuery(query({ text: "a_c4", ignoreCase: true })).matchingIds(
         set,
-        all(set),
-        query({ text: String.raw`^a .{2}$`, mode: "regex" })
+        all(set)
       )
     ).toHaveLength(1);
-    expect(() =>
-      findMatches(set, all(set), query({ text: "(", mode: "regex" }))
-    ).toThrow("Invalid regular expression");
-    expect(() => findMatches(set, all(set), query({ text: "" }))).toThrow(
-      "検索する文字列"
+    expect(
+      new RowQuery(
+        query({ text: String.raw`^a .{2}$`, mode: "regex" })
+      ).matchingIds(set, all(set))
+    ).toHaveLength(1);
+    expect(() => new RowQuery(query({ text: "(", mode: "regex" }))).toThrow(
+      "Invalid regular expression"
     );
+    expect(() => new RowQuery(query({ text: "" }))).toThrow("検索する文字列");
   });
 
   it("原文の検索は解釈できない行も対象にし、対象外の行は探さない", () => {
     expect(
       aliasesOf(
         set,
-        findMatches(set, all(set), query({ field: "text", text: "brok" }))
+        new RowQuery(query({ field: "text", text: "brok" })).matchingIds(
+          set,
+          all(set)
+        )
       )
     ).toStrictEqual(["broken"]);
     const [first] = set.lines;
     expect(
-      findMatches(set, new Set([first?.id ?? ""]), query({ text: "き" }))
+      new RowQuery(query({ text: "き" })).matchingIds(
+        set,
+        new Set([first?.id ?? ""])
+      )
     ).toHaveLength(1);
   });
 
   it("文字列は全箇所をそのまま、正規表現は$1を使って置換する", () => {
-    const literal = replaceMatches(
+    const literal = new RowQuery(query({ text: "き" })).replace(
       set,
       all(set),
-      query({ text: "き" }),
       "$&ぎ",
       false
     );
@@ -110,18 +121,13 @@ describe("検索・置換・抽出", () => {
       "a.wav=a $&ぎゃ,1,2,3,4,5",
       "き.wav=$&ぎ,1,2,3,4,5",
     ]);
-    const regex = replaceMatches(
-      set,
-      all(set),
-      query({ text: String.raw`^(\w) (.)`, mode: "regex" }),
-      "$2 $1",
-      false
-    );
+    const regex = new RowQuery(
+      query({ text: String.raw`^(\w) (.)`, mode: "regex" })
+    ).replace(set, all(set), "$2 $1", false);
     expect(texts(regex.otoSet)[0]).toBe("a.wav=き a,1,2,3,4,5");
-    const comma = replaceMatches(
+    const comma = new RowQuery(query({ text: "A" })).replace(
       set,
       all(set),
-      query({ text: "A" }),
       "x,y",
       false
     );
@@ -165,12 +171,12 @@ describe("検索・置換・抽出", () => {
 
 describe("規則によるエイリアスの複製・置換", () => {
   it("2列の規則を読み、形式の違う行を行番号付きで知らせる", () => {
-    expect(parseAliasRules("a お,a を\r\n\r\nき,ぎ")).toStrictEqual([
+    expect(AliasRules.parse("a お,a を\r\n\r\nき,ぎ").rules).toStrictEqual([
       { source: "a お", target: "a を" },
       { source: "き", target: "ぎ" },
     ]);
-    expect(() => parseAliasRules("a お,a を\nx")).toThrow("2行目");
-    expect(() => parseAliasRules("a,b,c")).toThrow("1行目");
+    expect(() => AliasRules.parse("a お,a を\nx")).toThrow("2行目");
+    expect(() => AliasRules.parse("a,b,c")).toThrow("1行目");
   });
 
   it("装飾を残して末尾へ複製し、既存の名前とは重ねない", () => {
@@ -184,18 +190,18 @@ describe("規則によるエイリアスの複製・置換", () => {
     if (first) {
       first.comment = "メモ";
     }
-    const rules = parseAliasRules("a お,a を");
-    const exact = duplicateByRules(source, all(source), rules, {
+    const rules = AliasRules.parse("a お,a を");
+    const exact = rules.duplicate(source, all(source), {
       mode: "exact",
       allowDuplicates: false,
     });
     expect(texts(exact.otoSet).at(-1)).toBe("b.wav=a を,1,2,3,4,5");
-    const suffix = duplicateByRules(source, all(source), rules, {
+    const suffix = rules.duplicate(source, all(source), {
       mode: "keepSuffix",
       allowDuplicates: false,
     });
     expect(kinds(suffix)).toStrictEqual(["skip", "add"]);
-    const allowed = duplicateByRules(source, all(source), rules, {
+    const allowed = rules.duplicate(source, all(source), {
       mode: "keepSuffix",
       allowDuplicates: true,
     });
@@ -208,10 +214,9 @@ describe("規則によるエイリアスの複製・置換", () => {
 
   it("複数規則は規則順・行順で追加し、生成した行を次の規則に使わない", () => {
     const source = load("a.wav=か,0,0,0,0,0\nb.wav=き,0,0,0,0,0\n");
-    const result = duplicateByRules(
+    const result = AliasRules.parse("き,ぎ\nか,が\nが,ご").duplicate(
       source,
       all(source),
-      parseAliasRules("き,ぎ\nか,が\nが,ご"),
       { mode: "exact", allowDuplicates: false }
     );
     expect(texts(result.otoSet).slice(2)).toStrictEqual([
@@ -222,23 +227,21 @@ describe("規則によるエイリアスの複製・置換", () => {
 
   it("置換は規則を順に重ね、空になる名前や重複を作らない", () => {
     const source = load("a.wav=a か_C4,0,0,0,0,0\nb.wav=カ,0,0,0,0,0\n");
-    const chained = renameByRules(
+    const chained = AliasRules.parse("か,が\nが,ぐ\n_C4,").rename(
       source,
       all(source),
-      parseAliasRules("か,が\nが,ぐ\n_C4,"),
       { mode: "keepBoth", allowDuplicates: false, all: false }
     );
     expect(texts(chained.otoSet)[0]).toBe("a.wav=a ぐ,0,0,0,0,0");
-    const empty = renameByRules(source, all(source), parseAliasRules("カ,"), {
+    const empty = AliasRules.parse("カ,").rename(source, all(source), {
       mode: "exact",
       allowDuplicates: false,
       all: false,
     });
     expect(kinds(empty)).toStrictEqual(["error"]);
-    const duplicate = renameByRules(
+    const duplicate = AliasRules.parse("カ,a か_C4").rename(
       source,
       all(source),
-      parseAliasRules("カ,a か_C4"),
       {
         mode: "exact",
         allowDuplicates: false,
@@ -372,7 +375,7 @@ const options = (patch: Partial<ConversionOptions>): ConversionOptions => ({
 });
 
 describe("連続音からCV・VCを追加", () => {
-  const table = readSyllableTable("か,k,a,80,100,20\nきゃ,ky,a,60,90,10\n");
+  const table = SyllableTable.parse("か,k,a,80,100,20\nきゃ,ky,a,60,90,10\n");
 
   it("先行発声と終端の位置を保ったCVを作る", () => {
     const source = load("a.wav=a か,1000,375,-600,250,100\n");

@@ -13,8 +13,8 @@ import {
   continuousTiming,
   generateOtoSuggestions,
   generateSelectedOtoSuggestions,
-  readCvTimingTable,
 } from "./oto-generation";
+import { SyllableTable } from "./syllable-table";
 
 const recording: AlignedRecording = {
   cvOnset: null,
@@ -168,7 +168,7 @@ describe("推定境界から原音設定への変換", () => {
   });
 
   it("table.csvは指定された先行発声とオーバーラップを母音境界に合わせる", () => {
-    const cvTimings = readCvTimingTable("か,k,a,50,70,0\r\n");
+    const cvTimings = SyllableTable.parse("か,k,a,50,70,0\r\n").cvTimings();
     const rows = generateOtoSuggestions(recording, {
       format: "cv",
       bpm: 120,
@@ -176,7 +176,7 @@ describe("推定境界から原音設定への変換", () => {
       cvTimings,
     });
     expect(rows[1]).toMatchObject({ offset: 1030, preutter: 70, overlap: 0 });
-    expect(() => readCvTimingTable("か,k,a,50,no,0")).toThrow("1行目");
+    expect(() => SyllableTable.parse("か,k,a,50,no,0")).toThrow("1行目");
   });
 
   it("語尾を無音内で止め、単独音には追加しない", () => {

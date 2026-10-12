@@ -15,8 +15,8 @@ import {
   useScope,
 } from "./batch-preview";
 import { narrowRows, rowFilterStore } from "./row-filter";
-import { extractLines, findMatches, replaceMatches } from "./row-query";
-import type { QueryField, QueryMode, RowQuery } from "./row-query";
+import { extractLines, RowQuery } from "./row-query";
+import type { QueryField, QueryMode, RowQueryOptions } from "./row-query";
 import { closeEditorPanel } from "./settings";
 import { editorStore, errorText, notify, runTool } from "./store";
 import { writeSubset } from "./subset-export";
@@ -45,7 +45,7 @@ export const QueryDialog = () => {
   const present = usePresent();
   const scope = useScope(present);
   const filtered = useSelector(rowFilterStore, (state) => state !== null);
-  const [query, setQuery] = useState<RowQuery>({
+  const [query, setQuery] = useState<RowQueryOptions>({
     field: "alias",
     mode: "contains",
     text: "",
@@ -58,29 +58,30 @@ export const QueryDialog = () => {
   const [allowLastRow, setAllowLastRow] = useState(false);
   const [exportName, setExportName] = useState("oto-extract.ini");
   const [deleteExported, setDeleteExported] = useState(false);
-  const update = (patch: Partial<RowQuery>) => {
+  const update = (patch: Partial<RowQueryOptions>) => {
     setQuery({ ...query, ...patch });
   };
 
+  let rowQuery: RowQuery | null = null;
   let matches: string[] = [];
   let error = "";
   if (present !== null && query.text !== "") {
     try {
-      matches = findMatches(present.otoSet, scope.ids, query);
+      rowQuery = new RowQuery(query);
+      matches = rowQuery.matchingIds(present.otoSet, scope.ids);
     } catch (queryError) {
       error = errorText(queryError);
     }
   }
   const matched = new Set(matches);
   const preview =
-    present === null || error !== "" || matches.length === 0
+    present === null || rowQuery === null || matches.length === 0
       ? { result: null, error }
       : tryPreview(() => {
           if (action === "replace") {
-            return replaceMatches(
+            return rowQuery.replace(
               present.otoSet,
               scope.ids,
-              query,
               replacement,
               replaceAll
             );

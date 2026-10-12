@@ -5,8 +5,7 @@ import { Check } from "../../components/ui/check";
 import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField, SelectField } from "../../components/ui/field";
 import { pickDocument } from "../../platform/files/documents";
-import { readSyllableTable } from "../alignment/oto-generation";
-import type { SyllableTiming } from "../alignment/oto-generation";
+import { SyllableTable } from "../alignment/syllable-table";
 import { decodeText } from "../oto/encoding";
 import {
   BatchPreview,
@@ -24,7 +23,7 @@ export const ConversionDialog = () => {
   const scope = useScope(present);
   const [table, setTable] = useState<{
     name: string;
-    rows: SyllableTiming[];
+    table: SyllableTable;
   } | null>(null);
   const [options, setOptions] = useState<Omit<ConversionOptions, "table">>({
     cv: true,
@@ -46,7 +45,7 @@ export const ConversionDialog = () => {
       : tryPreview(() =>
           convertVoicebank(present.otoSet, scope.ids, {
             ...options,
-            table: table?.rows ?? null,
+            table: table?.table ?? null,
           })
         );
   return (
@@ -74,7 +73,7 @@ export const ConversionDialog = () => {
                     if (file !== null) {
                       setTable({
                         name: file.name,
-                        rows: readSyllableTable(decodeText(file.bytes)),
+                        table: SyllableTable.parse(decodeText(file.bytes)),
                       });
                     }
                   });
@@ -89,7 +88,7 @@ export const ConversionDialog = () => {
               ) : (
                 <>
                   <span className="truncate text-xs text-slate-200">
-                    {table.name}（{table.rows.length}音節）
+                    {table.name}（{table.table.size}音節）
                   </span>
                   <Button
                     tone="ghost"

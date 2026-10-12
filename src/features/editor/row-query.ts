@@ -1,12 +1,13 @@
+import { SMALL_KANA } from "../alignment/japanese";
 import type { OtoLine, OtoSet } from "../oto/oto-set";
-import { effectiveAlias, isOtoLine, setLineOto } from "../oto/oto-set";
-import { aliasProblem, literalPattern, SMALL_KANA } from "./batch";
-import type { BatchEntry, BatchResult } from "./batch";
+import { effectiveAlias, isOtoLine } from "../oto/oto-set";
+import { aliasProblem, BatchBuilder, literalPattern } from "./batch";
+import type { BatchResult } from "./batch";
 
 export type QueryField = "alias" | "wav" | "comment" | "text";
 export type QueryMode = "contains" | "exact" | "regex";
 
-export interface RowQuery {
+export interface RowQueryOptions {
   field: QueryField;
   mode: QueryMode;
   text: string;
@@ -14,118 +15,103 @@ export interface RowQuery {
   excludeYoon: boolean;
 }
 
-export const queryPattern = (query: RowQuery, global = false): RegExp => {
-  if (query.text === "") {
-    throw new Error("検索する文字列を入力してください。");
+const patternSource = (options: RowQueryOptions): string => {
+  if (options.mode === "regex") {
+    return options.text;
   }
-  const flags = `u${query.ignoreCase ? "i" : ""}${global ? "g" : ""}`;
-  if (query.mode === "regex") {
-    return new RegExp(query.text, flags);
+  const literal = literalPattern(options.text);
+  if (options.mode === "exact") {
+    return `^${literal}$`;
   }
-  const literal = literalPattern(query.text);
-  if (query.mode === "exact") {
-    return new RegExp(`^${literal}$`, flags);
-  }
-  return new RegExp(
-    query.excludeYoon ? `${literal}(?![${SMALL_KANA}])` : literal,
-    flags
-  );
+  return options.excludeYoon ? `${literal}(?![${SMALL_KANA}])` : literal;
 };
 
-const fieldValue = (line: OtoLine, field: QueryField): string | null => {
-  if (line.parsed.kind === "blank") {
-    return null;
-  }
-  if (field === "text") {
-    return line.text;
-  }
-  if (!isOtoLine(line)) {
-    return null;
-  }
-  if (field === "comment") {
-    return line.comment ?? "";
-  }
-  return field === "wav"
-    ? line.parsed.oto.wav
-    : effectiveAlias(line.parsed.oto);
-};
+export class RowQuery {
+  private readonly field: QueryField;
+  private readonly regex: boolean;
+  private readonly pattern: RegExp;
 
-export const findMatches = (
-  otoSet: OtoSet,
-  ids: ReadonlySet<string>,
-  query: RowQuery
-): string[] => {
-  const pattern = queryPattern(query);
-  return otoSet.lines.flatMap((line) => {
-    const value = ids.has(line.id) ? fieldValue(line, query.field) : null;
-    return value !== null && pattern.test(value) ? [line.id] : [];
-  });
-};
-
-export const replaceMatches = (
-  otoSet: OtoSet,
-  ids: ReadonlySet<string>,
-  query: RowQuery,
-  replacement: string,
-  all: boolean
-): BatchResult => {
-  if (query.field !== "alias" && query.field !== "comment") {
-    throw new Error("置換できるのはエイリアスとコメントです。");
+  constructor(options: RowQueryOptions) {
+    if (options.text === "") {
+      throw new Error("検索する文字列を入力してください。");
+    }
+    this.field = options.field;
+    this.regex = options.mode === "regex";
+    this.pattern = new RegExp(
+      patternSource(options),
+      options.ignoreCase ? "iu" : "u"
+    );
   }
-  const regex = query.mode === "regex";
-  const pattern = queryPattern(query, all || !regex);
-  const entries: BatchEntry[] = [];
-  const lines = otoSet.lines.map((line) => {
-    const value = ids.has(line.id) ? fieldValue(line, query.field) : null;
-    if (value === null || !isOtoLine(line)) {
-      return line;
-    }
-    const next = regex
-      ? value.replace(pattern, replacement)
-      : value.replace(pattern, () => replacement);
-    if (next === value) {
-      return line;
-    }
-    const { oto } = line.parsed;
-    if (query.field === "comment") {
-      if (/[\r\n]/u.test(next)) {
-        entries.push({
-          kind: "error",
-          lineId: line.id,
-          before: oto,
-          after: null,
-          note: "コメントに改行が入ります",
-        });
-        return line;
-      }
-      entries.push({
-        kind: "change",
-        lineId: line.id,
-        before: oto,
-        after: oto,
-        note: `コメント: ${value} → ${next}`,
-      });
-      return { ...line, comment: next };
-    }
-    const after = { ...oto, alias: next };
-    const problem = aliasProblem(next);
-    entries.push({
-      kind: problem === "" ? "change" : "error",
-      lineId: line.id,
-      before: oto,
-      after,
-      note: problem,
+
+  matchingIds(otoSet: OtoSet, ids: ReadonlySet<string>): string[] {
+    return otoSet.lines.flatMap((line) => {
+      const value = ids.has(line.id) ? this.valueOf(line) : null;
+      return value !== null && this.pattern.test(value) ? [line.id] : [];
     });
-    return problem === "" ? setLineOto(line, after) : line;
-  });
-  return {
-    base: otoSet,
-    otoSet: entries.some((entry) => entry.kind === "change")
-      ? { ...otoSet, lines }
-      : otoSet,
-    entries,
-  };
-};
+  }
+
+  replace(
+    otoSet: OtoSet,
+    ids: ReadonlySet<string>,
+    replacement: string,
+    all: boolean
+  ): BatchResult {
+    if (this.field !== "alias" && this.field !== "comment") {
+      throw new Error("置換できるのはエイリアスとコメントです。");
+    }
+    const pattern =
+      all || !this.regex
+        ? new RegExp(this.pattern.source, `${this.pattern.flags}g`)
+        : this.pattern;
+    const builder = new BatchBuilder(otoSet);
+    for (const line of otoSet.lines) {
+      const value = ids.has(line.id) ? this.valueOf(line) : null;
+      if (value === null || !isOtoLine(line)) {
+        continue;
+      }
+      const next = this.regex
+        ? value.replace(pattern, replacement)
+        : value.replace(pattern, () => replacement);
+      if (next === value) {
+        continue;
+      }
+      if (this.field === "comment") {
+        if (/[\r\n]/u.test(next)) {
+          builder.error(line, null, "コメントに改行が入ります");
+        } else {
+          builder.changeComment(line, next, `コメント: ${value} → ${next}`);
+        }
+        continue;
+      }
+      const after = { ...line.parsed.oto, alias: next };
+      const problem = aliasProblem(next);
+      if (problem === "") {
+        builder.change(line, after);
+      } else {
+        builder.error(line, after, problem);
+      }
+    }
+    return builder.build();
+  }
+
+  private valueOf(line: OtoLine): string | null {
+    if (line.parsed.kind === "blank") {
+      return null;
+    }
+    if (this.field === "text") {
+      return line.text;
+    }
+    if (!isOtoLine(line)) {
+      return null;
+    }
+    if (this.field === "comment") {
+      return line.comment ?? "";
+    }
+    return this.field === "wav"
+      ? line.parsed.oto.wav
+      : effectiveAlias(line.parsed.oto);
+  }
+}
 
 export const extractLines = (
   otoSet: OtoSet,

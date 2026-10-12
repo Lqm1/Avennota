@@ -17,7 +17,6 @@ import { loadJapaneseModel, phoneInventory } from "../alignment/models";
 import {
   applyOtoSuggestions,
   generateSelectedOtoSuggestions,
-  readCvTimingTable,
 } from "../alignment/oto-generation";
 import type { CvTiming, VoicebankFormat } from "../alignment/oto-generation";
 import {
@@ -26,6 +25,7 @@ import {
 } from "../alignment/recordings";
 import { regularizeRepeatedVowels } from "../alignment/rhythm";
 import type { BoundaryCorrection } from "../alignment/rhythm";
+import { SyllableTable } from "../alignment/syllable-table";
 import type { AcousticModel } from "../alignment/types";
 import { decodeText } from "../oto/encoding";
 import type { OtoSet, ParsedOtoLine } from "../oto/oto-set";
@@ -589,7 +589,7 @@ export const AlignmentDialog = () => {
         if (kind === "index") {
           setIndex(readRecordingIndex(decodeText(file.bytes)));
         } else {
-          setCvTimings(readCvTimingTable(decodeText(file.bytes)));
+          setCvTimings(SyllableTable.parse(decodeText(file.bytes)).cvTimings());
         }
       }
       setState({ kind: "idle" });

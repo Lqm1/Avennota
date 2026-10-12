@@ -1,14 +1,9 @@
 import { continuousTiming } from "../alignment/oto-generation";
 import { moveOffset, roundMs } from "../oto/geometry";
 import type { Oto, OtoParams, OtoSet } from "../oto/oto-set";
-import {
-  effectiveAlias,
-  PARAM_KEYS,
-  setLineOto,
-  withParams,
-} from "../oto/oto-set";
-import { CONTINUOUS_ALIAS, targetLines } from "./batch";
-import type { BatchEntry, BatchResult } from "./batch";
+import { effectiveAlias, PARAM_KEYS, withParams } from "../oto/oto-set";
+import { BatchBuilder, CONTINUOUS_ALIAS, targetLines } from "./batch";
+import type { BatchResult } from "./batch";
 
 export type ParameterOperation =
   | { kind: "overlapThird" }
@@ -96,21 +91,14 @@ export const transformParameters = (
   options: ParameterOptions
 ): BatchResult => {
   const transform = planOperation(operation, options.digits);
-  const entries: BatchEntry[] = [];
-  const changes = new Map<string, Oto>();
+  const builder = new BatchBuilder(otoSet);
   for (const line of targetLines(otoSet, ids)) {
     const { oto } = line.parsed;
     if (options.continuousOnly && !isContinuous(oto)) {
       continue;
     }
     if (PARAM_KEYS.some((key) => !Number.isFinite(oto[key]))) {
-      entries.push({
-        kind: "error",
-        lineId: line.id,
-        before: oto,
-        after: null,
-        note: "数値でない欄があります",
-      });
+      builder.error(line, null, "数値でない欄があります");
       continue;
     }
     const params = transform(oto);
@@ -122,29 +110,11 @@ export const transformParameters = (
       operation.kind === "ratio" && oto.preutter <= oto.overlap
         ? "先行発声がオーバーラップより後ろにありません"
         : layoutProblem(oto, params);
-    entries.push({
-      kind: problem === "" ? "change" : "error",
-      lineId: line.id,
-      before: oto,
-      after,
-      note: problem,
-    });
     if (problem === "") {
-      changes.set(line.id, after);
+      builder.change(line, after);
+    } else {
+      builder.error(line, after, problem);
     }
   }
-  return {
-    base: otoSet,
-    otoSet:
-      changes.size === 0
-        ? otoSet
-        : {
-            ...otoSet,
-            lines: otoSet.lines.map((line) => {
-              const oto = changes.get(line.id);
-              return oto === undefined ? line : setLineOto(line, oto);
-            }),
-          },
-    entries,
-  };
+  return builder.build();
 };
