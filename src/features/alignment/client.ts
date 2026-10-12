@@ -1,5 +1,6 @@
 /* eslint-disable no-await-in-loop -- WAVを順に転送してメモリ使用量を抑え、単一Workerで処理する。 */
 import { releaseProxy, transfer, wrap } from "comlink";
+import type { Remote } from "comlink";
 import { z } from "zod";
 
 import type { VoiceFolder } from "../../platform/files/types";
@@ -18,6 +19,83 @@ const trainingProgressSchema = z.object({
   completed: z.number().int().nonnegative(),
   total: z.number().int().positive(),
 });
+
+const phonesOf = (recording: RecordingTranscript): string[] =>
+  recording.morae.flatMap((mora) => mora.phones);
+
+class AlignmentWorkerSession {
+  readonly align: Remote<AlignmentWorker>;
+  private readonly worker: Worker;
+  private readonly signal: AbortSignal;
+  private readonly onTrainingProgress: (
+    completed: number,
+    total: number
+  ) => void;
+  private readonly ready = Promise.withResolvers<null>();
+  private readonly interruption = Promise.withResolvers<never>();
+
+  constructor(
+    signal: AbortSignal,
+    onTrainingProgress: (completed: number, total: number) => void
+  ) {
+    this.signal = signal;
+    this.onTrainingProgress = onTrainingProgress;
+    this.worker = new Worker(
+      new URL("../../workers/alignment.ts", import.meta.url),
+      { type: "module" }
+    );
+    this.align = wrap<AlignmentWorker>(this.worker);
+    signal.addEventListener("abort", this.abort, { once: true });
+    this.worker.addEventListener("error", this.fail);
+    this.worker.addEventListener("messageerror", this.decodeFailed);
+    this.worker.addEventListener("message", this.receive);
+  }
+
+  async started(): Promise<void> {
+    await this.call(this.ready.promise);
+  }
+
+  async call<T>(promise: Promise<T>): Promise<T> {
+    return await Promise.race([promise, this.interruption.promise]);
+  }
+
+  dispose(): void {
+    this.signal.removeEventListener("abort", this.abort);
+    this.worker.removeEventListener("error", this.fail);
+    this.worker.removeEventListener("messageerror", this.decodeFailed);
+    this.worker.removeEventListener("message", this.receive);
+    this.align[releaseProxy]();
+    this.worker.terminate();
+  }
+
+  private readonly abort = () => {
+    this.worker.terminate();
+    this.interruption.reject(this.signal.reason);
+  };
+
+  private readonly fail = (event: ErrorEvent) => {
+    this.interruption.reject(
+      new Error(`自動推定ワーカーが停止しました: ${event.message}`)
+    );
+  };
+
+  private readonly decodeFailed = () => {
+    this.interruption.reject(
+      new Error("自動推定ワーカーの処理結果を受信できませんでした。")
+    );
+  };
+
+  private readonly receive = (event: MessageEvent<unknown>) => {
+    if (event.data === "ready") {
+      this.ready.resolve(null);
+      return;
+    }
+    const parsed = trainingProgressSchema.safeParse(event.data);
+    if (parsed.success && !this.signal.aborted) {
+      this.onTrainingProgress(parsed.data.completed, parsed.data.total);
+    }
+  };
+}
 
 export const inferRecordings = async ({
   folder,
@@ -41,7 +119,7 @@ export const inferRecordings = async ({
   signal.throwIfAborted();
   const inventory = phoneInventory(model.phonemap);
   for (const recording of recordings) {
-    for (const phone of recording.morae.flatMap((mora) => mora.phones)) {
+    for (const phone of phonesOf(recording)) {
       if (!inventory.has(phone)) {
         throw new Error(
           `「${recording.wav}」の音素「${phone}」は音響モデルに対応していません。`
@@ -49,100 +127,50 @@ export const inferRecordings = async ({
       }
     }
   }
-  const worker = new Worker(
-    new URL("../../workers/alignment.ts", import.meta.url),
-    { type: "module" }
-  );
-  const align = wrap<AlignmentWorker>(worker);
-  const ready = Promise.withResolvers<null>();
-  const interruption = Promise.withResolvers<never>();
-  const abort = () => {
-    worker.terminate();
-    interruption.reject(signal.reason);
-  };
-  const fail = (event: ErrorEvent) => {
-    interruption.reject(
-      new Error(`自動推定ワーカーが停止しました: ${event.message}`)
-    );
-  };
-  const decodeFailed = () => {
-    interruption.reject(
-      new Error("自動推定ワーカーの処理結果を受信できませんでした。")
-    );
-  };
-  const receive = (event: MessageEvent<unknown>) => {
-    if (event.data === "ready") {
-      ready.resolve(null);
-      return;
-    }
-    const parsed = trainingProgressSchema.safeParse(event.data);
-    if (parsed.success && !signal.aborted) {
-      onTrainingProgress(parsed.data.completed, parsed.data.total);
-    }
-  };
-  signal.addEventListener("abort", abort, { once: true });
-  worker.addEventListener("error", fail);
-  worker.addEventListener("messageerror", decodeFailed);
-  worker.addEventListener("message", receive);
+  const session = new AlignmentWorkerSession(signal, onTrainingProgress);
   try {
-    await Promise.race([ready.promise, interruption.promise]);
+    await session.started();
     let acousticModel = model;
     if (adapt) {
-      await Promise.race([align.prepareTraining(model), interruption.promise]);
+      await session.call(session.align.prepareTraining(model));
       let completed = 0;
       for (const recording of recordings) {
         onProgress(completed, recordings.length, `学習用: ${recording.wav}`);
-        const bytes = await Promise.race([
-          folder.read(recording.wav),
-          interruption.promise,
-        ]);
+        const bytes = await session.call(folder.read(recording.wav));
         signal.throwIfAborted();
-        await Promise.race([
-          align.addTrainingRecording(
+        await session.call(
+          session.align.addTrainingRecording(
             recording.wav,
             transfer(bytes, [bytes.buffer]),
-            recording.morae.flatMap((mora) => mora.phones)
-          ),
-          interruption.promise,
-        ]);
+            phonesOf(recording)
+          )
+        );
         completed += 1;
       }
       signal.throwIfAborted();
       onTrainingProgress(0, 6);
-      acousticModel = await Promise.race([
-        align.finishTraining(),
-        interruption.promise,
-      ]);
+      acousticModel = await session.call(session.align.finishTraining());
       signal.throwIfAborted();
     }
     const results: AlignedRecording[] = [];
     for (const recording of recordings) {
       onProgress(results.length, recordings.length, recording.wav);
-      const bytes = await Promise.race([
-        folder.read(recording.wav),
-        interruption.promise,
-      ]);
+      const bytes = await session.call(folder.read(recording.wav));
       signal.throwIfAborted();
-      const result = await Promise.race([
-        align.align(
+      const result = await session.call(
+        session.align.align(
           acousticModel,
           transfer(bytes, [bytes.buffer]),
-          recording.morae.flatMap((mora) => mora.phones),
+          phonesOf(recording),
           format
-        ),
-        interruption.promise,
-      ]);
+        )
+      );
       signal.throwIfAborted();
       results.push({ ...recording, ...result });
       onProgress(results.length, recordings.length, recording.wav);
     }
     return results;
   } finally {
-    signal.removeEventListener("abort", abort);
-    worker.removeEventListener("error", fail);
-    worker.removeEventListener("messageerror", decodeFailed);
-    worker.removeEventListener("message", receive);
-    align[releaseProxy]();
-    worker.terminate();
+    session.dispose();
   }
 };

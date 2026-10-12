@@ -82,7 +82,7 @@ export interface FilePlatform {
   readonly recovery: RecoveryStore;
 }
 
-const describe = (error: unknown): string =>
+export const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /** 各環境の例外を、画面で扱える種類へ分類する。 */
@@ -94,7 +94,7 @@ export const toFileAccessError = (
   if (error instanceof FileAccessError) {
     return error;
   }
-  const message = describe(error);
+  const message = errorText(error);
   const name = error instanceof Error ? error.name : "";
   if (
     name === "NotAllowedError" ||

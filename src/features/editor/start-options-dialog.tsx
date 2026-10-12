@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { EditorDialog } from "../../components/ui/editor-dialog";
-import { stopTone } from "../audio/tone-player";
+import { tonePlayback } from "../audio/tone-player";
 import { SettingsForm } from "./settings-dialog";
 import type { SettingsSection } from "./settings-dialog";
 
@@ -18,7 +18,7 @@ const sections: { id: SettingsSection; label: string }[] = [
 export const StartOptionsDialog = ({ onClose }: { onClose: () => void }) => {
   const [section, setSection] = useState<SettingsSection>("inputSettings");
   const close = () => {
-    stopTone();
+    tonePlayback.stop();
     onClose();
   };
   return (

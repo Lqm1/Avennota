@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { playTiming } from "../audio/timing-player";
 import { waveControls } from "../audio/wave-controls";
 import { MARKERS } from "../oto/geometry";
-import { cellSelectionStore, selectedCells } from "./cell-selection";
+import { cellSelectionStore, selectedLineIds } from "./cell-selection";
 import { trimSelectedWav } from "./file-tools";
 import { editorCommand } from "./keyboard-commands";
 import type { EditorCommand } from "./keyboard-commands";
@@ -53,12 +53,7 @@ const selected = (action: (id: string) => void): void => {
   if (selectedId === null) {
     return;
   }
-  const ids = new Set(
-    selectedCells(otoSet, cellSelectionStore.state, selectedId).map(
-      (cell) => cell.lineId
-    )
-  );
-  if (ids.size > 1) {
+  if (selectedLineIds(otoSet, cellSelectionStore.state, selectedId).size > 1) {
     notify("warning", "この操作は1行だけ選択してください。");
     return;
   }

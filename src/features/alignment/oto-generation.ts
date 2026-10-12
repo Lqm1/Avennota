@@ -20,14 +20,18 @@ export interface CvTiming {
 }
 
 const truncate = (value: number) => Math.trunc(value * 1000) / 1000;
+export const beatLength = (bpm: number): number => {
+  if (!Number.isFinite(bpm) || bpm <= 0) {
+    throw new Error("収録BPMは0より大きい数値を指定してください。");
+  }
+  return 60_000 / bpm;
+};
+
 export const continuousTiming = (
   bpm: number,
   round: (value: number) => number = truncate
 ): OtoParams => {
-  if (!Number.isFinite(bpm) || bpm <= 0) {
-    throw new Error("収録BPMは0より大きい数値を指定してください。");
-  }
-  const beat = 60_000 / bpm;
+  const beat = beatLength(bpm);
   const overlap = round(beat / 6);
   return {
     offset: 0,

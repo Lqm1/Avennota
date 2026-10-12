@@ -60,17 +60,16 @@ export const RecordingTempoField = ({
   });
   useEffect(() => {
     const controller = new AbortController();
+    const unlessManual = (next: RecordingTempo) => {
+      onChange((previous) => (previous.kind === "manual" ? previous : next));
+    };
     const estimate = async () => {
       try {
         setState({
           kind: "loading",
           message: retry === 0 ? "収録BPMを推定中…" : "収録BPMを再推定中…",
         });
-        onChange((previous) =>
-          previous.kind === "manual"
-            ? previous
-            : { kind: "estimating", bpm: 120 }
-        );
+        unlessManual({ kind: "estimating", bpm: 120 });
         const recordings = await readRecordingTranscripts({
           folder,
           wavs,
@@ -106,25 +105,14 @@ export const RecordingTempoField = ({
         controller.signal.throwIfAborted();
         setState(result);
         if (result.kind === "estimated") {
-          const { bpm } = result;
-          onChange((previous) =>
-            previous.kind === "manual" ? previous : { kind: "estimated", bpm }
-          );
+          unlessManual({ kind: "estimated", bpm: result.bpm });
         } else {
-          onChange((previous) =>
-            previous.kind === "manual"
-              ? previous
-              : { kind: "default", bpm: 120 }
-          );
+          unlessManual({ kind: "default", bpm: 120 });
         }
       } catch (error) {
         if (!controller.signal.aborted) {
           setState({ kind: "error", message: errorText(error) });
-          onChange((previous) =>
-            previous.kind === "manual"
-              ? previous
-              : { kind: "default", bpm: 120 }
-          );
+          unlessManual({ kind: "default", bpm: 120 });
         }
       }
     };

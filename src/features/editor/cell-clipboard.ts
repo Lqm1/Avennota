@@ -2,7 +2,7 @@ import { copyCells, pasteCells, changeCells } from "./bulk-edit";
 import { cellSelectionStore, selectedCells } from "./cell-selection";
 import type { CellPoint } from "./cell-selection";
 import { settingsStore } from "./settings";
-import { ask, editorStore, transformOtoSet, notify } from "./store";
+import { ask, editorStore, errorText, transformOtoSet, notify } from "./store";
 
 export const clipboardAction = async (
   action: "copy" | "cut" | "paste",
@@ -61,6 +61,6 @@ export const clipboardAction = async (
       }
     }
   } catch (error) {
-    notify("error", `クリップボードを操作できません: ${String(error)}`);
+    notify("error", `クリップボードを操作できません: ${errorText(error)}`);
   }
 };

@@ -9,6 +9,7 @@ import {
 import { parseOto, isOtoLine, serializeOto } from "../oto/oto-set";
 import type { OtoSet } from "../oto/oto-set";
 import {
+  cellText,
   changeAliases,
   changeCells,
   copyCells,
@@ -316,6 +317,22 @@ describe("セル編集", () => {
       copyCells(edited, [{ lineId: row(edited).id, column: "alias" }, cell])
     ).toBe("a,確認 済み\n");
     expect(row(pasteCells(source, [cell], "メモ\n")).comment).toBe("メモ");
+  });
+
+  it("セルの表示・編集・コピーは同じ文字列を使い、数値でない欄は原文を保つ", () => {
+    const source = fixture("a.wav=a,375.0,x,,-,5\n");
+    const line = row(source);
+    expect(
+      (["offset", "consonant", "cutoff", "preutter"] as const).map((column) =>
+        cellText(line, column)
+      )
+    ).toStrictEqual(["375", "x", "", "-"]);
+    expect(
+      copyCells(source, [
+        { lineId: line.id, column: "consonant" },
+        { lineId: line.id, column: "overlap" },
+      ])
+    ).toBe("x,5\n");
   });
 
   it("空欄は空欄のまま保存し、小数第3位で打ち切る", () => {

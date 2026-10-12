@@ -4,7 +4,7 @@ import { z } from "zod";
 import { recoveryRecordSchema } from "../../features/editor/recovery-data";
 import { openLocalDatabase } from "../storage";
 import type { FilePlatform, RecoveryStore, VoiceFolder } from "./types";
-import { FileAccessError, toFileAccessError } from "./types";
+import { errorText, FileAccessError, toFileAccessError } from "./types";
 
 /** フォルダとFile System Access APIのハンドルの対応。ハンドルは編集ロジックへ渡さない。 */
 const handles = new WeakMap<VoiceFolder, FileSystemDirectoryHandle>();
@@ -27,6 +27,16 @@ const readFile = async (
   const fileHandle =
     selected.get(name) ?? (await directory.getFileHandle(name));
   return await fileHandle.getFile();
+};
+
+export const requestReadWrite = async (
+  handle: FileSystemHandle
+): Promise<boolean> => {
+  const descriptor = { mode: "readwrite" } as const;
+  return (
+    (await handle.queryPermission(descriptor)) === "granted" ||
+    (await handle.requestPermission(descriptor)) === "granted"
+  );
 };
 
 /** 利用者が選んだフォルダを直接扱う。音源をブラウザ内へ複製しない。 */
@@ -92,11 +102,7 @@ export const createBrowserFolder = (
       await directory.removeEntry(name);
     },
     async ensureWritable() {
-      const descriptor = { mode: "readwrite" } as const;
-      if ((await directory.queryPermission(descriptor)) === "granted") {
-        return true;
-      }
-      return (await directory.requestPermission(descriptor)) === "granted";
+      return await requestReadWrite(directory);
     },
     async listFiles() {
       try {
@@ -274,7 +280,7 @@ const createBrowserRecoveryStore = (): RecoveryStore => ({
     } catch (error) {
       throw new FileAccessError(
         "write",
-        `復元データを保存できません: ${String(error)}`,
+        `復元データを保存できません: ${errorText(error)}`,
         { cause: error }
       );
     }

@@ -36,6 +36,7 @@ import {
   select,
   selectIsDirty,
   setEncoding,
+  unlistedWavs,
   useEditor,
 } from "./store";
 import type { OpenWorkspace, EditorState } from "./store";
@@ -260,14 +261,10 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
       [...session.wavs.values()].toSorted((a, b) => a.localeCompare(b, "ja")),
     [session.wavs]
   );
-  const unlistedCount = useMemo(() => {
-    const listed = new Set(
-      rows.flatMap((row) =>
-        row.kind === "oto" ? [row.line.parsed.oto.wav.toLowerCase()] : []
-      )
-    );
-    return wavNames.filter((name) => !listed.has(name.toLowerCase())).length;
-  }, [rows, wavNames]);
+  const unlistedCount = useMemo(
+    () => unlistedWavs(otoSet, session.wavs).length,
+    [otoSet, session.wavs]
+  );
   const findNext = (direction: 1 | -1) => {
     if (query.trim() === "" || rows.length === 0) {
       return;

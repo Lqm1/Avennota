@@ -4,14 +4,9 @@ import { ProgressBar } from "react-aria-components";
 
 import { Button } from "../../components/ui/button";
 import { EditorDialog } from "../../components/ui/editor-dialog";
-import { getFilePlatform } from "../../platform/files";
-import {
-  loadFolderHistory,
-  reopenBookmark,
-  useFolderHistory,
-} from "./folder-history";
+import { loadFolderHistory, useFolderHistory } from "./folder-history";
 import type { FolderBookmark } from "./folder-history";
-import { openVoiceFolder, confirmDiscardChanges, errorText } from "./store";
+import { confirmDiscardChanges, errorText, openBookmark } from "./store";
 
 export const RecentFoldersDialog = ({ onClose }: { onClose: () => void }) => {
   const history = useFolderHistory();
@@ -34,15 +29,8 @@ export const RecentFoldersDialog = ({ onClose }: { onClose: () => void }) => {
     setOpening(entry.id);
     setFailure("");
     try {
-      const folder = await reopenBookmark(entry);
-      if (folder === null) {
-        setFailure(
-          "このフォルダにアクセスできません。音源フォルダを開くボタンから選び直してください。"
-        );
-      } else {
-        await openVoiceFolder(folder, await getFilePlatform());
-        onClose();
-      }
+      await openBookmark(entry);
+      onClose();
     } catch (error) {
       setFailure(`フォルダを開けませんでした: ${errorText(error)}`);
     }

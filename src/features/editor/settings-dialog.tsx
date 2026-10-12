@@ -6,7 +6,7 @@ import { Check } from "../../components/ui/check";
 import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField, SelectField } from "../../components/ui/field";
 import { setTimingClick, resetTimingClick } from "../audio/timing-player";
-import { stopTone } from "../audio/tone-player";
+import { tonePlayback } from "../audio/tone-player";
 import { MARKERS, MARKER_LABELS } from "../oto/geometry";
 import { AdvancedSettingsFields } from "./advanced-settings-fields";
 import { applyEditorSettings } from "./apply-settings";
@@ -28,7 +28,7 @@ const pointLabels: Record<PlayPoint, string> = {
 };
 const pointOptions = PLAY_POINTS.map((id) => ({ id, label: pointLabels[id] }));
 const close = () => {
-  stopTone();
+  tonePlayback.stop();
   showEditorPanel(null);
 };
 export const SETTINGS_SECTIONS = {

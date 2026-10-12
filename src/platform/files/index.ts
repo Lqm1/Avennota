@@ -8,7 +8,7 @@ export type {
   RecoveryRecord,
   VoiceFolder,
 } from "./types";
-export { FileAccessError } from "./types";
+export { errorText, FileAccessError } from "./types";
 
 const loadPlatform = async (): Promise<FilePlatform> => {
   if (isTauri()) {

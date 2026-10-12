@@ -3,7 +3,7 @@ import { loadWavBlob, durationStore, setDuration } from "../audio/wav-cache";
 import { cutoffInMode } from "../oto/marker-movement";
 import { settingsStore, updateSettings } from "./settings";
 import type { EditorSettings } from "./settings";
-import { editorStore, notify, updateManyParams } from "./store";
+import { editorStore, errorText, notify, updateManyParams } from "./store";
 
 /** 表現切り替えは終端を維持して全行へ適用する。読めないWAVがあれば変更しない。 */
 export const applyEditorSettings = async (
@@ -48,7 +48,7 @@ export const applyEditorSettings = async (
       }
       updateManyParams(changes);
     } catch (error) {
-      notify("error", `右ブランクを変換できません: ${String(error)}`);
+      notify("error", `右ブランクを変換できません: ${errorText(error)}`);
       return false;
     } finally {
       await context?.close();

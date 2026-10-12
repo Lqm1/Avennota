@@ -6,7 +6,7 @@ import { CommitTextField, SelectField } from "../../components/ui/field";
 import { getFilePlatform } from "../../platform/files";
 import type { VoiceFolder } from "../../platform/files";
 import { closeEditorPanel } from "./settings";
-import { openFolder, openIni, saveAs, useEditor, notify } from "./store";
+import { openFolder, openIni, runTool, saveAs, useEditor } from "./store";
 
 export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
   const [destination, setDestination] = useState<VoiceFolder | undefined>();
@@ -18,36 +18,27 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
   const folder = workspace.kind === "open" ? workspace.session.folder : null;
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    void runTool(async () => {
       if (folder === null) {
         return;
       }
-      try {
-        const files = await folder.listFiles();
-        if (!cancelled) {
-          setNames(files.filter((file) => file.toLowerCase().endsWith(".ini")));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          notify("error", String(error));
-        }
+      const files = await folder.listFiles();
+      if (!cancelled) {
+        setNames(files.filter((file) => file.toLowerCase().endsWith(".ini")));
       }
-    };
-    void load();
+    });
     return () => {
       cancelled = true;
     };
   }, [folder]);
   const chooseDestination = async () => {
-    try {
+    await runTool(async () => {
       const platform = await getFilePlatform();
       const picked = await platform.pickFolder();
       if (picked !== null) {
         setDestination(picked);
       }
-    } catch (error) {
-      notify("error", String(error));
-    }
+    });
   };
   const run = async () => {
     const success = await (mode === "open"
@@ -62,15 +53,13 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
       workspace.kind === "open" ? workspace.session.storageFolder : undefined;
     const target =
       mode === "save" ? (destination ?? storageFolder ?? folder) : folder;
-    try {
+    await runTool(async () => {
       const picked = await target?.pickIni?.();
       if (picked !== null && picked !== undefined) {
         setName(picked);
         setNames((current) => [...new Set([...current, picked])]);
       }
-    } catch (error) {
-      notify("error", String(error));
-    }
+    });
   };
   return (
     <EditorDialog

@@ -5,7 +5,7 @@ import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import type { VoiceFolder } from "../../platform/files";
 import type { SpectrumWorker } from "../../workers/spectrum";
 import type { EditorSettings } from "../editor/settings";
-import { notify } from "../editor/store";
+import { errorText, notify } from "../editor/store";
 import type { ParsedOtoLine } from "../oto/oto-set";
 import { loadWaveSegment } from "./wave-segment";
 
@@ -115,7 +115,7 @@ export const useSpectrumData = (
           setData({ key, folder, url });
         } catch (error) {
           if (!disposed) {
-            notify("error", String(error));
+            notify("error", errorText(error));
           }
         }
       };

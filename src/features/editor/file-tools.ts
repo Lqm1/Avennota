@@ -1,6 +1,9 @@
 /* eslint-disable no-await-in-loop -- Process one WAV at a time to bound memory and preserve transaction order. */
 import type { FileChange } from "../../platform/files/transaction";
-import { applyFileChanges } from "../../platform/files/transaction";
+import {
+  applyFileChanges,
+  readIfExists,
+} from "../../platform/files/transaction";
 import { invalidateWavBlob } from "../audio/wav-cache";
 import {
   decodePcmWave,
@@ -16,7 +19,14 @@ import { serializeOto, setLineOto, fileStem } from "../oto/oto-set";
 import { commentFileName, writeComments } from "./comments";
 import { createHistory } from "./history";
 import { settingsStore } from "./settings";
-import { ask, editorStore, notify } from "./store";
+import {
+  ask,
+  editorStore,
+  errorText,
+  notify,
+  wavIndex,
+  withBusy,
+} from "./store";
 
 /** WAVとiniを一緒に変更し、音声に対応しなくなる過去の編集履歴を破棄する。元データは.bakへ保存する。 */
 const commitFiles = async (
@@ -35,9 +45,7 @@ const commitFiles = async (
   const storage = session.storageFolder ?? session.folder;
   const commentBytes = writeComments(next);
   const commentsName = commentFileName(session.otoName);
-  const currentComments = (await storage.stat(commentsName))
-    ? await storage.read(commentsName)
-    : null;
+  const currentComments = await readIfExists(storage, commentsName);
   const hasComments =
     currentComments !== null ||
     next.lines.some((line) => (line.comment ?? "") !== "");
@@ -76,11 +84,7 @@ const commitFiles = async (
         baseline: serialized.bytes,
         commentBaseline: hasComments ? commentBytes : null,
         savedOtoSet: next,
-        wavs: new Map(
-          names
-            .filter((name) => name.toLowerCase().endsWith(".wav"))
-            .map((name) => [name.toLowerCase(), name])
-        ),
+        wavs: wavIndex(names),
       },
       history: createHistory({
         otoSet: next,
@@ -116,46 +120,48 @@ export const processWavs = async (
   ) {
     return;
   }
-  editorStore.setState((state) => ({ ...state, busy: "WAVを加工しています" }));
-  try {
-    let { lines } = workspace.history.present.otoSet;
-    const changes: FileChange[] = [];
-    for (const name of names) {
-      const before = await workspace.session.folder.read(name);
-      const wave = decodePcmWave(before);
-      const result = processWave(wave, options);
-      const length = wave.channels[0]?.length ?? 0;
-      const duration = (length / wave.rate) * 1000;
-      const head =
-        (Math.round((options.headMs * wave.rate) / 1000) / wave.rate) * 1000;
-      const tail =
-        (Math.round((options.tailMs * wave.rate) / 1000) / wave.rate) * 1000;
-      lines = lines.map((line) => {
-        if (
-          line.parsed.kind !== "oto" ||
-          line.parsed.oto.wav.toLowerCase() !== name.toLowerCase() ||
-          options.adjustBlanks === false
-        ) {
-          return line;
-        }
-        const corrected =
-          options.adjustBlanks === true
-            ? adjustTrimBlanks(line.parsed.oto, head, tail)
-            : trimOto(line.parsed.oto, duration, head, tail);
-        return setLineOto(line, corrected);
-      });
-      changes.push({ name, before, after: encodePcmWave(result) });
+  await withBusy("WAVを加工しています", async () => {
+    try {
+      let { lines } = workspace.history.present.otoSet;
+      const changes: FileChange[] = [];
+      for (const name of names) {
+        const before = await workspace.session.folder.read(name);
+        const wave = decodePcmWave(before);
+        const result = processWave(wave, options);
+        const length = wave.channels[0]?.length ?? 0;
+        const duration = (length / wave.rate) * 1000;
+        const head =
+          (Math.round((options.headMs * wave.rate) / 1000) / wave.rate) * 1000;
+        const tail =
+          (Math.round((options.tailMs * wave.rate) / 1000) / wave.rate) * 1000;
+        lines = lines.map((line) => {
+          if (
+            line.parsed.kind !== "oto" ||
+            line.parsed.oto.wav.toLowerCase() !== name.toLowerCase() ||
+            options.adjustBlanks === false
+          ) {
+            return line;
+          }
+          const corrected =
+            options.adjustBlanks === true
+              ? adjustTrimBlanks(line.parsed.oto, head, tail)
+              : trimOto(line.parsed.oto, duration, head, tail);
+          return setLineOto(line, corrected);
+        });
+        changes.push({ name, before, after: encodePcmWave(result) });
+      }
+      if (editorStore.state.workspace !== workspace) {
+        throw new Error("編集中の内容が変わりました。加工は適用していません。");
+      }
+      await commitFiles(
+        { ...workspace.history.present.otoSet, lines },
+        changes
+      );
+      notify("info", `${names.length}ファイルを加工しました。`);
+    } catch (error) {
+      notify("error", `加工できません: ${errorText(error)}`);
     }
-    if (editorStore.state.workspace !== workspace) {
-      throw new Error("編集中の内容が変わりました。加工は適用していません。");
-    }
-    await commitFiles({ ...workspace.history.present.otoSet, lines }, changes);
-    notify("info", `${names.length}ファイルを加工しました。`);
-  } catch (error) {
-    notify("error", `加工できません: ${String(error)}`);
-  } finally {
-    editorStore.setState((state) => ({ ...state, busy: "" }));
-  }
+  });
 };
 export const renameWavs = async (related: boolean): Promise<void> => {
   const { workspace, busy } = editorStore.state;
@@ -175,65 +181,61 @@ export const renameWavs = async (related: boolean): Promise<void> => {
   ) {
     return;
   }
-  editorStore.setState((state) => ({
-    ...state,
-    busy: "ファイル名を変更しています",
-  }));
-  try {
-    const names = await workspace.session.folder.listFiles();
-    const map = new Map(
-      [...workspace.session.wavs.values()]
-        .filter((name) => !name.startsWith("_"))
-        .map((name) => [name, `_${name}`])
-    );
-    const changes: FileChange[] = [];
-    const used = new Set(names.map((name) => name.toLowerCase()));
-    const files = names.filter(
-      (name) =>
-        map.has(name) ||
-        (related &&
-          [...map.keys()].some(
-            (wav) =>
-              name.startsWith(`${fileStem(wav)}.`) ||
-              name.startsWith(`${fileStem(wav)}_wav.`)
-          ))
-    );
-    for (const name of files) {
-      const target = `_${name}`;
-      if (used.has(target.toLowerCase())) {
-        throw new Error(`${target}が既に存在します。`);
-      }
-      const before = await workspace.session.folder.read(name);
-      changes.push(
-        { name: target, before: null, after: before },
-        { name, before, after: null }
+  await withBusy("ファイル名を変更しています", async () => {
+    try {
+      const names = await workspace.session.folder.listFiles();
+      const map = new Map(
+        [...workspace.session.wavs.values()]
+          .filter((name) => !name.startsWith("_"))
+          .map((name) => [name, `_${name}`])
       );
-    }
-    const mapped = new Map(
-      [...map].map(([name, target]) => [name.toLowerCase(), target])
-    );
-    const next = {
-      ...workspace.history.present.otoSet,
-      lines: workspace.history.present.otoSet.lines.map((line) => {
-        if (line.parsed.kind !== "oto") {
-          return line;
+      const changes: FileChange[] = [];
+      const used = new Set(names.map((name) => name.toLowerCase()));
+      const files = names.filter(
+        (name) =>
+          map.has(name) ||
+          (related &&
+            [...map.keys()].some(
+              (wav) =>
+                name.startsWith(`${fileStem(wav)}.`) ||
+                name.startsWith(`${fileStem(wav)}_wav.`)
+            ))
+      );
+      for (const name of files) {
+        const target = `_${name}`;
+        if (used.has(target.toLowerCase())) {
+          throw new Error(`${target}が既に存在します。`);
         }
-        const name = mapped.get(line.parsed.oto.wav.toLowerCase());
-        return name === undefined
-          ? line
-          : setLineOto(line, { ...line.parsed.oto, wav: name });
-      }),
-    };
-    if (workspace !== editorStore.state.workspace) {
-      throw new Error("編集中の内容が変わりました。変更は適用していません。");
+        const before = await workspace.session.folder.read(name);
+        changes.push(
+          { name: target, before: null, after: before },
+          { name, before, after: null }
+        );
+      }
+      const mapped = new Map(
+        [...map].map(([name, target]) => [name.toLowerCase(), target])
+      );
+      const next = {
+        ...workspace.history.present.otoSet,
+        lines: workspace.history.present.otoSet.lines.map((line) => {
+          if (line.parsed.kind !== "oto") {
+            return line;
+          }
+          const name = mapped.get(line.parsed.oto.wav.toLowerCase());
+          return name === undefined
+            ? line
+            : setLineOto(line, { ...line.parsed.oto, wav: name });
+        }),
+      };
+      if (workspace !== editorStore.state.workspace) {
+        throw new Error("編集中の内容が変わりました。変更は適用していません。");
+      }
+      await commitFiles(next, changes);
+      notify("info", `${map.size}件のWAV名を変更しました。`);
+    } catch (error) {
+      notify("error", `ファイル名を変更できません: ${errorText(error)}`);
     }
-    await commitFiles(next, changes);
-    notify("info", `${map.size}件のWAV名を変更しました。`);
-  } catch (error) {
-    notify("error", `ファイル名を変更できません: ${String(error)}`);
-  } finally {
-    editorStore.setState((state) => ({ ...state, busy: "" }));
-  }
+  });
 };
 export const trimSelectedWav = async (): Promise<void> => {
   if (!settingsStore.state.advanced.allowTrim) {
@@ -264,6 +266,6 @@ export const trimSelectedWav = async (): Promise<void> => {
       tailMs: Math.max(0, duration - cutoffEnd(line.parsed.oto, duration)),
     });
   } catch (error) {
-    notify("error", String(error));
+    notify("error", errorText(error));
   }
 };

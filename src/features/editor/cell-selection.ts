@@ -58,3 +58,12 @@ export const selectedCells = (
       )
     );
 };
+
+export const selectedLineIds = (
+  otoSet: OtoSet,
+  selection: CellSelection | null,
+  fallbackId: string | null
+): Set<string> =>
+  new Set(
+    selectedCells(otoSet, selection, fallbackId).map((cell) => cell.lineId)
+  );

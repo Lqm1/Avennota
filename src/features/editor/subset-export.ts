@@ -1,14 +1,15 @@
 import { FileAccessError } from "../../platform/files";
-import { applyFileChanges, bytesEqual } from "../../platform/files/transaction";
+import {
+  applyFileChanges,
+  bytesEqual,
+  readIfExists,
+} from "../../platform/files/transaction";
 import type { FileChange } from "../../platform/files/transaction";
 import type { OtoSet } from "../oto/oto-set";
 import { serializeOto } from "../oto/oto-set";
 import { commentFileName, writeComments } from "./comments";
-import { ask, editorStore, validIniName } from "./store";
+import { ask, validIniName, withBusy } from "./store";
 import type { Session } from "./store";
-
-const readIfExists = async (session: Session, name: string) =>
-  (await session.folder.stat(name)) ? await session.folder.read(name) : null;
 
 export const writeSubset = async (
   session: Session,
@@ -39,7 +40,7 @@ export const writeSubset = async (
   let current: Uint8Array<ArrayBuffer> | null = null;
   let created = false;
   try {
-    current = await readIfExists(session, name);
+    current = await readIfExists(session.folder, name);
   } catch (error) {
     if (
       !(error instanceof FileAccessError) ||
@@ -82,15 +83,11 @@ export const writeSubset = async (
     const commentName = commentFileName(name);
     changes.push({
       name: commentName,
-      before: await readIfExists(session, commentName),
+      before: await readIfExists(session.folder, commentName),
       after: writeComments(subset),
     });
   }
-  editorStore.setState((state) => ({
-    ...state,
-    busy: "iniを書き出しています",
-  }));
-  try {
+  await withBusy("iniを書き出しています", async () => {
     if (created) {
       await folder.write(name, serialized.bytes);
       if (!bytesEqual(await folder.read(name), serialized.bytes)) {
@@ -98,8 +95,6 @@ export const writeSubset = async (
       }
     }
     await applyFileChanges(folder, changes);
-  } finally {
-    editorStore.setState((state) => ({ ...state, busy: "" }));
-  }
+  });
   return name;
 };

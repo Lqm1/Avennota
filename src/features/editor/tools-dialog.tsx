@@ -10,7 +10,7 @@ import { pickDocument, exportDocument } from "../../platform/files/documents";
 import { decodeText } from "../oto/encoding";
 import { parseOto, serializeOto } from "../oto/oto-set";
 import { commentFileName, readComments, writeComments } from "./comments";
-import { reopenBookmark, useFolderHistory } from "./folder-history";
+import { useFolderHistory } from "./folder-history";
 import {
   annotateUst,
   complementAliases,
@@ -25,6 +25,7 @@ import {
   ask,
   editorStore,
   notify,
+  openBookmark,
   openVoiceFolder,
   runTool,
   transformOtoSet,
@@ -266,13 +267,7 @@ export const ToolsDialog = () => {
                   ) {
                     return;
                   }
-                  const folder = await reopenBookmark(entry);
-                  if (folder === null) {
-                    throw new Error(
-                      "このフォルダへのアクセスを再選択してください。"
-                    );
-                  }
-                  await openVoiceFolder(folder, await getFilePlatform());
+                  await openBookmark(entry);
                   closeEditorPanel();
                 });
               }}

@@ -1,8 +1,9 @@
-import { cellSelectionStore, selectedCells } from "../editor/cell-selection";
+import { cellSelectionStore, selectedLineIds } from "../editor/cell-selection";
 import { settingsStore } from "../editor/settings";
 import { editorStore, errorText, notify } from "../editor/store";
 import { cutoffEnd } from "../oto/geometry";
 import { isOtoLine } from "../oto/oto-set";
+import { AudioPlayback } from "./audio-playback";
 import { timingClickCollection } from "./timing-click-storage";
 import { loadWavBlob } from "./wav-cache";
 import { waveControls } from "./wave-controls";
@@ -65,9 +66,8 @@ export const mixTimingClips = (
   return output;
 };
 
-let context: AudioContext | null = null;
-let player: AudioBufferSourceNode | null = null;
-let request = 0;
+export const timingPlayback = new AudioPlayback({ sampleRate: 44_100 });
+
 export const resetTimingClick = async (): Promise<boolean> => {
   try {
     const collection = await timingClickCollection();
@@ -77,21 +77,14 @@ export const resetTimingClick = async (): Promise<boolean> => {
     notify("info", "内蔵クリック音に戻しました。");
     return true;
   } catch (error) {
-    notify("error", `クリック音を初期化できません: ${String(error)}`);
+    notify("error", `クリック音を初期化できません: ${errorText(error)}`);
     return false;
-  }
-};
-export const stopTiming = (): void => {
-  request += 1;
-  if (player !== null) {
-    player.stop();
-    player = null;
   }
 };
 export const setTimingClick = async (file: File): Promise<boolean> => {
   try {
-    context ??= new AudioContext({ sampleRate: 44_100 });
     const bytes = await file.arrayBuffer();
+    const context = await timingPlayback.audioContext();
     await context.decodeAudioData(structuredClone(bytes));
     const collection = await timingClickCollection();
     const transaction = collection.has("timing-click")
@@ -128,23 +121,18 @@ const defaultClick = (rate: number): Float32Array => {
   return click;
 };
 export const playTiming = async (): Promise<void> => {
-  if (player !== null) {
-    stopTiming();
+  if (timingPlayback.active) {
+    timingPlayback.stop();
     return;
   }
-  waveControls()?.stop();
-  request += 1;
-  const token = request;
   const { workspace } = editorStore.state;
   if (workspace.kind === "closed") {
     return;
   }
+  waveControls()?.stop();
+  const token = timingPlayback.begin();
   const { otoSet, selectedId } = workspace.history.present;
-  const ids = new Set(
-    selectedCells(otoSet, cellSelectionStore.state, selectedId).map(
-      (cell) => cell.lineId
-    )
-  );
+  const ids = selectedLineIds(otoSet, cellSelectionStore.state, selectedId);
   const rows = otoSet.lines
     .filter(isOtoLine)
     .filter((line) => ids.has(line.id));
@@ -152,9 +140,7 @@ export const playTiming = async (): Promise<void> => {
     notify("warning", "発声タイミング試聴は先頭20行を再生します。");
   }
   try {
-    context ??= new AudioContext({ sampleRate: 44_100 });
-    const audioContext = context;
-    await audioContext.resume();
+    const audioContext = await timingPlayback.audioContext();
     const clips = await Promise.all(
       rows.slice(0, 20).map(async (line): Promise<TimingClip> => {
         const { oto } = line.parsed;
@@ -185,7 +171,7 @@ export const playTiming = async (): Promise<void> => {
       audioContext.sampleRate,
       settingsStore.state.timing
     );
-    if (token !== request || mixed.length === 0) {
+    if (mixed.length === 0) {
       return;
     }
     const buffer = audioContext.createBuffer(
@@ -194,24 +180,12 @@ export const playTiming = async (): Promise<void> => {
       audioContext.sampleRate
     );
     buffer.getChannelData(0).set(mixed);
-    const source = audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioContext.destination);
-    source.addEventListener(
-      "ended",
-      () => {
-        if (player === source) {
-          player = null;
-        }
-        source.disconnect();
-      },
-      { once: true }
-    );
-    player = source;
-    source.start();
+    timingPlayback.start(token, buffer);
   } catch (error) {
-    if (token === request) {
+    if (timingPlayback.isCurrent(token)) {
       notify("error", `発声タイミング試聴に失敗しました: ${errorText(error)}`);
     }
+  } finally {
+    timingPlayback.finish(token);
   }
 };

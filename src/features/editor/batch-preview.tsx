@@ -9,7 +9,7 @@ import type { Oto, OtoSet } from "../oto/oto-set";
 import { formatNumber, PARAM_KEYS, PARAM_LABELS } from "../oto/oto-set";
 import { countEntries } from "./batch";
 import type { BatchEntry, BatchResult, BatchScope } from "./batch";
-import { cellSelectionStore, selectedCells } from "./cell-selection";
+import { cellSelectionStore, selectedLineIds } from "./cell-selection";
 import { ParamSwatch } from "./param-swatch";
 import { rowFilterStore, visibleLines } from "./row-filter";
 import { closeEditorPanel } from "./settings";
@@ -41,11 +41,7 @@ const scopeIds = (
   if (scope === "visible") {
     return new Set(visibleLines(otoSet).map((line) => line.id));
   }
-  return new Set(
-    selectedCells(otoSet, cellSelectionStore.state, selectedId).map(
-      (cell) => cell.lineId
-    )
-  );
+  return selectedLineIds(otoSet, cellSelectionStore.state, selectedId);
 };
 
 const listedCount = (otoSet: OtoSet, ids: ReadonlySet<string>) =>

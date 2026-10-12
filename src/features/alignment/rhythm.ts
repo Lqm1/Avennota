@@ -1,4 +1,5 @@
 import type { AlignedRecording } from "./client";
+import { beatLength } from "./oto-generation";
 
 export interface BoundaryCorrection {
   wav: string;
@@ -12,10 +13,7 @@ export const regularizeRepeatedVowels = (
   recording: AlignedRecording,
   bpm: number
 ): { recording: AlignedRecording; corrections: BoundaryCorrection[] } => {
-  if (!Number.isFinite(bpm) || bpm <= 0) {
-    throw new Error("収録BPMは0より大きい数値を指定してください。");
-  }
-  const beat = 60 / bpm;
+  const beat = beatLength(bpm) / 1000;
   const intervals = recording.intervals.map((interval) => ({ ...interval }));
   const corrections: BoundaryCorrection[] = [];
   let at = 0;

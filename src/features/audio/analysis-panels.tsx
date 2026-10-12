@@ -5,7 +5,7 @@ import type WaveSurfer from "wavesurfer.js";
 import type { AudioAnalysisWorker } from "../../workers/audio-analysis";
 import type { AdvancedSettings } from "../editor/advanced-settings";
 import { frequencyNote, NOTE_NAMES } from "../editor/pitch-settings";
-import { notify } from "../editor/store";
+import { errorText, notify } from "../editor/store";
 import { MARKER_LABELS, MARKERS, toPositions } from "../oto/geometry";
 import type { OtoParams } from "../oto/oto-set";
 import type { AudioAnalysis } from "./analysis";
@@ -85,7 +85,7 @@ export const AnalysisPanels = ({
         }
       } catch (error) {
         if (!disposed && currentRequest === request) {
-          notify("error", `音声解析に失敗しました: ${String(error)}`);
+          notify("error", `音声解析に失敗しました: ${errorText(error)}`);
         }
       }
     };
