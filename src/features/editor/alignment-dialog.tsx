@@ -11,6 +11,7 @@ import {
 import { pickDocument } from "../../platform/files/documents";
 import { inferRecordings } from "../alignment/client";
 import { transcriptionFromFilename } from "../alignment/japanese";
+import type { LabelRecording } from "../alignment/label-export";
 import { loadJapaneseModel, phoneInventory } from "../alignment/models";
 import {
   applyOtoSuggestions,
@@ -33,6 +34,7 @@ import {
   PARAM_KEYS,
   PARAM_LABELS,
 } from "../oto/oto-set";
+import { LabelExport } from "./label-export";
 import { RecordingTempoField } from "./recording-tempo";
 import type { RecordingTempo } from "./recording-tempo";
 import { showEditorPanel } from "./settings";
@@ -55,6 +57,7 @@ type RunState =
       after: OtoSet;
       session: Session;
       count: number;
+      recordings: LabelRecording[];
       corrections: BoundaryCorrection[];
       onsetCorrections: { wav: string; before: number; after: number }[];
     };
@@ -254,6 +257,7 @@ export const AlignmentDialog = () => {
           after,
           session: current.session,
           count: aligned.length,
+          recordings: aligned,
           corrections: adjusted.flatMap((result) => result.corrections),
           onsetCorrections: aligned.flatMap((recording) => {
             const [, vowel] = recording.intervals;
@@ -332,6 +336,10 @@ export const AlignmentDialog = () => {
               {state.count} WAV、{resultLines.length}行の変更候補、
               {preview.removed.length}行の削除候補
             </output>
+            <LabelExport
+              recordings={state.recordings}
+              folder={state.session.folder}
+            />
             {state.after === state.before ? (
               <p className="text-xs text-slate-300">
                 {mode === "generate"
