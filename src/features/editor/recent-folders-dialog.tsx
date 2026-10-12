@@ -11,18 +11,18 @@ import {
   useFolderHistory,
 } from "./folder-history";
 import type { FolderBookmark } from "./folder-history";
-import { openVoiceFolder, confirmDiscardChanges } from "./store";
+import { openVoiceFolder, confirmDiscardChanges, errorText } from "./store";
 
 export const RecentFoldersDialog = ({ onClose }: { onClose: () => void }) => {
   const history = useFolderHistory();
   const [opening, setOpening] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [failure, setFailure] = useState("");
   useEffect(() => {
     const load = async () => {
       try {
         await loadFolderHistory();
       } catch {
-        setError("フォルダの履歴を読み込めませんでした。");
+        setFailure("フォルダの履歴を読み込めませんでした。");
       }
     };
     void load();
@@ -32,21 +32,19 @@ export const RecentFoldersDialog = ({ onClose }: { onClose: () => void }) => {
       return;
     }
     setOpening(entry.id);
-    setError("");
+    setFailure("");
     try {
       const folder = await reopenBookmark(entry);
       if (folder === null) {
-        setError(
+        setFailure(
           "このフォルダにアクセスできません。音源フォルダを開くボタンから選び直してください。"
         );
       } else {
         await openVoiceFolder(folder, await getFilePlatform());
         onClose();
       }
-    } catch {
-      setError(
-        "フォルダを開けませんでした。場所とアクセス権を確認してください。"
-      );
+    } catch (error) {
+      setFailure(`フォルダを開けませんでした: ${errorText(error)}`);
     }
     setOpening(null);
   };
@@ -87,9 +85,9 @@ export const RecentFoldersDialog = ({ onClose }: { onClose: () => void }) => {
             ))}
           </ul>
         )}
-        {error === "" ? null : (
+        {failure === "" ? null : (
           <p role="alert" className="text-sm text-amber-300">
-            {error}
+            {failure}
           </p>
         )}
         <div className="border-line flex justify-end border-t pt-3">

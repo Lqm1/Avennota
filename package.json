@@ -15,6 +15,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@shiro-rs/wasm": "0.1.0",
     "@tanstack/db": "^0.13.0",
     "@tanstack/pacer": "^0.23.1",
     "@tanstack/react-hotkeys": "^0.13.0",

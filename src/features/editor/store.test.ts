@@ -140,6 +140,72 @@ describe("編集状態と保存", () => {
     expect(selectIsDirty(editorStore.state)).toBeFalsy();
   });
 
+  it("フォルダ一覧から隠されたiniを新規ファイルと判断しない", async () => {
+    const { folder, platform } = fixture();
+    vi.spyOn(folder, "listFiles").mockResolvedValue(["a.wav", "b.wav"]);
+    await openVoiceFolder(folder, platform);
+    expect(opened().session.baseline).toStrictEqual(SOURCE);
+    expect(
+      opened().history.present.otoSet.lines.filter(isOtoLine)
+    ).toHaveLength(2);
+  });
+
+  it("iniアクセスが制限されたら個別選択で読んだ内容を保存しバックアップする", async () => {
+    const { folder, platform } = fixture();
+    vi.spyOn(folder, "listFiles").mockResolvedValue(["a.wav", "b.wav"]);
+    vi.spyOn(folder, "stat").mockRejectedValueOnce(
+      new FileAccessError("permission", "Name is not allowed")
+    );
+    const selectedFolder: VoiceFolder = {
+      name: folder.name,
+      listFiles: folder.listFiles.bind(folder),
+      stat: folder.stat.bind(folder),
+      read: folder.read.bind(folder),
+      write: folder.write.bind(folder),
+      ensureWritable: folder.ensureWritable.bind(folder),
+      pickIni: async () => await Promise.resolve("oto.ini"),
+    };
+    const opening = openVoiceFolder(selectedFolder, platform);
+    await vi.waitFor(() => {
+      expect(editorStore.state.dialog?.title).toBe(
+        "iniファイルを選んでください"
+      );
+    });
+    editorStore.state.dialog?.resolve("select");
+    await opening;
+    updateAlias(firstLine().id, "選択後");
+    await expect(save()).resolves.toBeTruthy();
+    expect(folder.files.get("oto.ini.bak")).toStrictEqual(SOURCE);
+    expect(selectIsDirty(editorStore.state)).toBeFalsy();
+  });
+
+  it("iniの個別選択をキャンセルしたら現在の編集内容を維持する", async () => {
+    const { folder, platform } = fixture();
+    await openVoiceFolder(folder, platform);
+    updateAlias(firstLine().id, "未保存");
+    const before = editorStore.state.workspace;
+    vi.spyOn(folder, "stat").mockRejectedValueOnce(
+      new FileAccessError("permission", "Name is not allowed")
+    );
+    const selectedFolder: VoiceFolder = {
+      name: folder.name,
+      listFiles: folder.listFiles.bind(folder),
+      stat: folder.stat.bind(folder),
+      read: folder.read.bind(folder),
+      write: folder.write.bind(folder),
+      ensureWritable: folder.ensureWritable.bind(folder),
+      pickIni: async () => await Promise.resolve(null),
+    };
+    const opening = openVoiceFolder(selectedFolder, platform);
+    await vi.waitFor(() => {
+      expect(editorStore.state.dialog).not.toBeNull();
+    });
+    editorStore.state.dialog?.resolve("select");
+    await expect(opening).rejects.toMatchObject({ kind: "cancelled" });
+    expect(editorStore.state.workspace).toBe(before);
+    expect(folder.files.get("oto.ini")).toStrictEqual(SOURCE);
+  });
+
   it("同じ選択・設定・文字コードでは参照も履歴も変えない", async () => {
     const { folder, platform } = fixture();
     await openVoiceFolder(folder, platform);

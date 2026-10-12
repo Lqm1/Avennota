@@ -401,13 +401,42 @@ export const openVoiceFolder = async (
         .filter((name) => name.toLowerCase().endsWith(".wav"))
         .map((name) => [name.toLowerCase(), name])
     );
-    const otoName =
+    let otoName =
       requestedName ??
       files.find((name) => name.toLowerCase() === OTO_NAME) ??
       OTO_NAME;
-    const baseline = files.includes(otoName)
-      ? await folder.read(otoName)
-      : null;
+    let baseline: Session["baseline"];
+    try {
+      baseline = (await folder.stat(otoName))
+        ? await folder.read(otoName)
+        : null;
+    } catch (error) {
+      if (
+        !(error instanceof FileAccessError) ||
+        error.kind !== "permission" ||
+        !folder.pickIni
+      ) {
+        throw error;
+      }
+      const choice = await ask({
+        title: "iniファイルを選んでください",
+        message:
+          "ブラウザがフォルダからiniファイルを開く操作を制限しています。音源フォルダの直下にあるoto.iniなどの原音設定を個別に選んでください。",
+        actions: [
+          { id: "select", label: "iniファイルを選ぶ" },
+          { id: "cancel", label: "キャンセル" },
+        ],
+      });
+      const picked = choice === "select" ? await folder.pickIni() : null;
+      if (picked === null) {
+        throw new FileAccessError(
+          "cancelled",
+          "原音設定の読み込みをキャンセルしました。"
+        );
+      }
+      otoName = picked;
+      baseline = await folder.read(otoName);
+    }
     let otoSet = baseline ? parseOto(baseline) : createEmptyOtoSet();
     const commentName = commentFileName(otoName);
     const commentBaseline = files.includes(commentName)
