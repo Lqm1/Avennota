@@ -3,4 +3,9 @@ import ultracite from "ultracite/oxfmt";
 
 export default defineConfig({
   ...ultracite,
+  ignorePatterns: [
+    ...(ultracite.ignorePatterns ?? []),
+    "/CHANGELOG.md",
+    "/.release-please-manifest.json",
+  ],
 });
