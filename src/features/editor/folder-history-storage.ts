@@ -11,6 +11,15 @@ export const isDirectoryHandle = (
   value instanceof FileSystemDirectoryHandle;
 
 const historyRowSchema = folderBookmarkSchema.extend({
+  iniFiles: z
+    .array(
+      z.custom<FileSystemFileHandle>(
+        (handle) =>
+          typeof FileSystemFileHandle !== "undefined" &&
+          handle instanceof FileSystemFileHandle
+      )
+    )
+    .default([]),
   position: z.number().int().nonnegative(),
   handle: z.custom<FileSystemDirectoryHandle>(isDirectoryHandle).nullable(),
 });

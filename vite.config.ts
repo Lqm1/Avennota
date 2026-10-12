@@ -17,6 +17,10 @@ export default defineConfig({
 
   // Tauriのエラー表示を隠さず、Tauriが期待する固定ポートで起動する。
   clearScreen: false,
+  optimizeDeps: {
+    // WASMが参照するJSと同じインスタンスを使うため、事前バンドルしない。
+    exclude: ["@shiro-rs/wasm"],
+  },
   server: {
     hmr: host === undefined ? undefined : { host, port: 1421, protocol: "ws" },
     host: host ?? false,

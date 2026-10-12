@@ -34,9 +34,12 @@ export const rememberFolder = async (
 ): Promise<FolderBookmark | null> => {
   let id = folder.bookmark ?? "";
   let handle: FileSystemDirectoryHandle | null = null;
+  let iniFiles: FileSystemFileHandle[] = [];
   if (!isTauri()) {
-    const { browserHandle } = await import("../../platform/files/browser");
+    const { browserHandle, browserIniHandles } =
+      await import("../../platform/files/browser");
     handle = browserHandle(folder) ?? null;
+    iniFiles = browserIniHandles(folder);
     if (handle === null) {
       return null;
     }
@@ -56,7 +59,13 @@ export const rememberFolder = async (
     id ||= crypto.randomUUID();
   }
   const records: FolderHistoryRow[] = [
-    { id, name: folder.name, nativePath: folder.bookmark ?? null, handle },
+    {
+      id,
+      name: folder.name,
+      nativePath: folder.bookmark ?? null,
+      handle,
+      iniFiles,
+    },
     ...previous.filter((entry) => entry.id !== id),
   ]
     .slice(0, 20)
@@ -92,5 +101,5 @@ export const reopenBookmark = async (
     return null;
   }
   const { createBrowserFolder } = await import("../../platform/files/browser");
-  return createBrowserFolder(handle);
+  return createBrowserFolder(handle, collection.get(entry.id)?.iniFiles);
 };

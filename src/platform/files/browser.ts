@@ -8,25 +8,71 @@ import { FileAccessError, toFileAccessError } from "./types";
 
 /** フォルダとFile System Access APIのハンドルの対応。ハンドルは編集ロジックへ渡さない。 */
 const handles = new WeakMap<VoiceFolder, FileSystemDirectoryHandle>();
+const selectedFiles = new WeakMap<
+  VoiceFolder,
+  Map<string, FileSystemFileHandle>
+>();
 export const browserHandle = (
   folder: VoiceFolder
 ): FileSystemDirectoryHandle | undefined => handles.get(folder);
+export const browserIniHandles = (
+  folder: VoiceFolder
+): FileSystemFileHandle[] => [...(selectedFiles.get(folder)?.values() ?? [])];
 
 const readFile = async (
   directory: FileSystemDirectoryHandle,
-  name: string
+  name: string,
+  selected: ReadonlyMap<string, FileSystemFileHandle>
 ): Promise<File> => {
-  const fileHandle = await directory.getFileHandle(name);
+  const fileHandle =
+    selected.get(name) ?? (await directory.getFileHandle(name));
   return await fileHandle.getFile();
 };
 
 /** 利用者が選んだフォルダを直接扱う。音源をブラウザ内へ複製しない。 */
 export const createBrowserFolder = (
-  directory: FileSystemDirectoryHandle
+  directory: FileSystemDirectoryHandle,
+  iniFiles: FileSystemFileHandle[] = []
 ): VoiceFolder => {
+  const selected = new Map(iniFiles.map((handle) => [handle.name, handle]));
   const folder: VoiceFolder = {
+    async pickIni() {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [
+            {
+              description: "原音設定",
+              accept: { "application/octet-stream": [".ini"] },
+            },
+          ],
+        });
+        if (handle === undefined) {
+          return null;
+        }
+        const path = await directory.resolve(handle);
+        if (path?.length !== 1 || !handle.name.toLowerCase().endsWith(".ini")) {
+          throw new FileAccessError(
+            "read",
+            "選んだ音源フォルダの直下にあるiniファイルを選んでください。"
+          );
+        }
+        if (
+          (await handle.requestPermission({ mode: "readwrite" })) !== "granted"
+        ) {
+          throw new FileAccessError(
+            "permission",
+            "iniファイルへの書き込みが許可されていません。"
+          );
+        }
+        selected.set(handle.name, handle);
+        return handle.name;
+      } catch (error) {
+        throw toFileAccessError(error, "read", "iniファイルの選択");
+      }
+    },
     readRange: async (name, offset, length) => {
-      const file = await readFile(directory, name);
+      const file = await readFile(directory, name, selected);
       return new Uint8Array(
         await file.slice(offset, offset + length).arrayBuffer()
       );
@@ -49,7 +95,7 @@ export const createBrowserFolder = (
             names.push(entry.name);
           }
         }
-        return names;
+        return [...new Set([...names, ...selected.keys()])];
       } catch (error) {
         throw toFileAccessError(error, "read", "フォルダの読み込み");
       }
@@ -57,7 +103,7 @@ export const createBrowserFolder = (
     name: directory.name,
     async read(name) {
       try {
-        const file = await readFile(directory, name);
+        const file = await readFile(directory, name, selected);
         return new Uint8Array(await file.arrayBuffer());
       } catch (error) {
         throw toFileAccessError(error, "read", `${name}の読み込み`);
@@ -65,7 +111,7 @@ export const createBrowserFolder = (
     },
     async stat(name) {
       try {
-        const file = await readFile(directory, name);
+        const file = await readFile(directory, name, selected);
         return { modifiedAt: file.lastModified, size: file.size };
       } catch (error) {
         const converted = toFileAccessError(error, "read", `${name}の確認`);
@@ -78,9 +124,11 @@ export const createBrowserFolder = (
     async write(name, bytes) {
       let writable: FileSystemWritableFileStream | null = null;
       try {
-        const fileHandle = await directory.getFileHandle(name, {
-          create: true,
-        });
+        const fileHandle =
+          selected.get(name) ??
+          (await directory.getFileHandle(name, {
+            create: true,
+          }));
         writable = await fileHandle.createWritable();
         await writable.write(bytes);
         // closeが解決した時点でブラウザが一時ファイルを元ファイルへ反映する。
@@ -98,6 +146,7 @@ export const createBrowserFolder = (
     },
   };
   handles.set(folder, directory);
+  selectedFiles.set(folder, selected);
   return folder;
 };
 
@@ -113,6 +162,15 @@ const handleOf = (folder: VoiceFolder): FileSystemDirectoryHandle => {
 };
 
 const storedRecordSchema = recoveryRecordSchema.extend({
+  iniFiles: z
+    .array(
+      z.custom<FileSystemFileHandle>(
+        (handle) =>
+          typeof FileSystemFileHandle !== "undefined" &&
+          handle instanceof FileSystemFileHandle
+      )
+    )
+    .default([]),
   handle: z.custom<FileSystemDirectoryHandle>(
     (handle) =>
       typeof FileSystemDirectoryHandle !== "undefined" &&
@@ -182,7 +240,7 @@ const createBrowserRecoveryStore = (): RecoveryStore => ({
       return null;
     }
     const stored = storedRecordSchema.parse(value);
-    const folder = createBrowserFolder(stored.handle);
+    const folder = createBrowserFolder(stored.handle, stored.iniFiles);
     try {
       return (await folder.ensureWritable()) ? folder : null;
     } catch {
@@ -190,15 +248,18 @@ const createBrowserRecoveryStore = (): RecoveryStore => ({
     }
   },
   async save(folder, record) {
-    const stored: StoredRecord = { ...record, handle: handleOf(folder) };
+    const stored: StoredRecord = {
+      ...record,
+      handle: handleOf(folder),
+      iniFiles: browserIniHandles(folder),
+    };
     try {
       const collection = await recoveryCollection();
-      const transaction = collection.has(record.id)
-        ? collection.update(record.id, (row) => {
-            Object.assign(row, stored);
-          })
-        : collection.insert(stored);
-      await transaction.when("settled");
+      // updateの下書きはネイティブのハンドルを通常のオブジェクトへ複製するため、IndexedDBへそのまま渡す。
+      await collection.utils.importData([
+        ...[...collection.values()].filter((value) => value.id !== record.id),
+        stored,
+      ]);
     } catch (error) {
       throw new FileAccessError(
         "write",

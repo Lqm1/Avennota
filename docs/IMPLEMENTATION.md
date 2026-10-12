@@ -10,7 +10,8 @@ src/
     oto/                  oto.iniの解釈・書き戻し・文字コード・マーカー計算（UIなし）
     editor/               編集状態、履歴、画面、ショートカット、設定、復元データ
     audio/                波形・解析パネル、WAVの読み込みと加工、再生
-  workers/                スペクトログラムとパワー・F0の解析Worker
+    alignment/            SHIROの音素境界推定、仮名解析、モデル取得、原音設定生成
+  workers/                スペクトログラム、パワー・F0、SHIROのWorker
   platform/
     files/                フォルダ操作の共通APIとブラウザ版・ネイティブ版の実装
     storage.ts            共有IndexedDB
@@ -33,6 +34,7 @@ src-tauri/                Tauri（fs・dialog・persisted-scopeプラグイン�
 | 波形・再生 | `wavesurfer.js`、`@wavesurfer/react` | Regions（マーカー）、Spectrogram、Timeline、Hover |
 | 解析Worker通信 | `comlink` | 型付きRPC。音声バッファは転送する |
 | F0 | `pitchy` | MPM |
+| 自動原音設定 | `@shiro-rs/wasm` | MFCC・HMM・HSMMをWorkerで実行 |
 | 文字コード | `encoding-japanese` | Shift_JISへの変換。読み込みはTextDecoder |
 | 保存データの検証 | `zod` | 保存・読み込みの境界で検証する |
 | スタイル | `tailwindcss`、`cn` | 色は`styles.css`の`@theme`トークン。幅に応じた表示はコンテナクエリ |
@@ -79,10 +81,12 @@ React AriaのTableは行データが変わると全行のコレクションを�
 ## 保存
 
 - 設定はTanStack DBのlocalStorageコレクションの`avennota.editor-settings`キー。自動保存と手動保存は順に処理し、失敗時は適用中の値を保って設定画面にエラーを表示する。別タブの保存値は作業中の設定へ適用しない。
-- IndexedDBは`avennota`データベースを共有する。`folders`に最近使ったフォルダ20件、`recovery`にWebの復元データとフォルダ参照、`audio`にクリック音を置く。保存・削除はトランザクションの完了を待つ。
+- IndexedDBは`avennota`データベースを共有する。`folders`に最近使ったフォルダ20件、`recovery`にWebの復元データとフォルダ参照、`audio`にクリック音、`models`にSHIROの音響モデルとphonemapを置く。保存・削除はトランザクションの完了を待つ。
 - oto.iniの保存手順: 入力中の値を確定 → 書き込み権限の確認 → 元ファイルを読み直して比較（外部変更なら確認）→ `oto.ini.bak`へ保存前の内容を書く → `oto.ini`を書く → 読み戻して照合 → 保存済みにする。
 - ネイティブ版は同じフォルダの`oto.ini.avennota-tmp`へ書いてから置き換える。ブラウザ版は書き込みストリームの`close()`完了で書き込み完了とする。
+- ブラウザで個別に選んだiniは、`FileSystemFileHandle`を名前ごとに保持して読み込み・情報取得・書き込みに使う。`resolve`で音源フォルダ直下のファイルであることを確認する。ファイル参照はフォルダ履歴と復元データに保存する。
 - 復元データは編集が止まって1秒後に記録する。ネイティブ版はアプリデータ領域の`recovery/*.json`。元ファイルのSHA-256を記録し、復元時に変わっていれば確認する。
+- Webの復元データはIndexedDBコレクションの`importData`で置き換える。フォルダ参照を更新用draftに通さず、IndexedDBのstructured cloneで保存する。
 - ネイティブ版はpersisted-scopeプラグインで前回選んだフォルダのスコープを保持する。
 
 ## アイコン

@@ -11,6 +11,7 @@ import { durationStore, EMPTY_DURATIONS } from "../audio/wav-cache";
 import { WavePlaceholder, WaveView } from "../audio/wave-view";
 import type { OtoEncoding } from "../oto/encoding";
 import { ENCODING_LABELS } from "../oto/encoding";
+import { AlignmentDialog } from "./alignment-dialog";
 import { BulkDialog, AliasDialog } from "./bulk-dialog";
 import { FileDialog } from "./file-dialog";
 import { AddLine, Inspector } from "./inspector";
@@ -451,6 +452,7 @@ export const EditorScreen = () => {
       {panel === "fileOpen" ? <FileDialog mode="open" /> : null}
       {panel === "fileSave" ? <FileDialog mode="save" /> : null}
       {panel === "tools" ? <ToolsDialog /> : null}
+      {panel === "alignment" ? <AlignmentDialog /> : null}
       {panel === "recentFolders" ? (
         <RecentFoldersDialog
           onClose={() => {

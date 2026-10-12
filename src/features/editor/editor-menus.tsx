@@ -448,6 +448,7 @@ export const ToolsMenu = () => {
     <EditorMenu
       label="ツール"
       entries={[
+        action("alignment", "原音設定の自動推定", panel("alignment"), disabled),
         submenu("wav", "wavファイルの一括編集", [
           action(
             "dc",

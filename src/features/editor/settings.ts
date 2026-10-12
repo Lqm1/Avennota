@@ -168,6 +168,7 @@ export type EditorPanel =
   | "fileOpen"
   | "fileSave"
   | "tools"
+  | "alignment"
   | "wavCut"
   | "timingSettings"
   | "playRangeSettings"

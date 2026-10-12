@@ -61,6 +61,21 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
       close();
     }
   };
+  const chooseIni = async () => {
+    const storageFolder =
+      workspace.kind === "open" ? workspace.session.storageFolder : undefined;
+    const target =
+      mode === "save" ? (destination ?? storageFolder ?? folder) : folder;
+    try {
+      const picked = await target?.pickIni?.();
+      if (picked !== null && picked !== undefined) {
+        setName(picked);
+        setNames((current) => [...new Set([...current, picked])]);
+      }
+    } catch (error) {
+      notify("error", String(error));
+    }
+  };
   return (
     <EditorDialog
       title={
@@ -89,6 +104,15 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
         >
           {mode === "save" ? "保存先フォルダを選ぶ" : "音源フォルダを選ぶ"}
         </Button>
+        {folder?.pickIni ? (
+          <Button
+            onPress={() => {
+              void chooseIni();
+            }}
+          >
+            iniファイルを個別に選ぶ
+          </Button>
+        ) : null}
         {mode === "open" ? (
           <SelectField
             label="iniファイル"
