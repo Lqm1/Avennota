@@ -1,19 +1,15 @@
-/// <reference types="node" />
-import { readFile } from "node:fs/promises";
-
 import {
   batch_feature_options,
   Dataset,
   FeatureFiles,
   Features,
   InitializationOptions,
-  initSync,
   PhoneMap,
   PhoneMapOptions,
   rawfloat_write,
   SegmentationDocument,
-} from "@shiro-rs/wasm/web";
-import { beforeAll, describe, expect, it } from "vitest";
+} from "@shiro-rs/wasm/bundler";
+import { describe, expect, it } from "vitest";
 
 import { encodePcmWave } from "../audio/wav-processing";
 import { alignRecording } from "./inference";
@@ -79,14 +75,6 @@ const fixture = (): { model: AcousticModel; wav: Uint8Array } => {
 };
 
 describe("SHIROの実WASMによる推定", () => {
-  beforeAll(async () => {
-    initSync({
-      module: await readFile(
-        new URL(import.meta.resolve("@shiro-rs/wasm/shared/index_bg.wasm"))
-      ),
-    });
-  });
-
   it("WAVデコードからMFCC・HMM・HSMMを実行し原音基準の秒数を返す", () => {
     const { model, wav } = fixture();
     const result = alignRecording(model, wav, ["a"]);

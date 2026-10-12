@@ -1,5 +1,4 @@
-import wasmUrl from "@shiro-rs/wasm/shared/index_bg.wasm?url";
-import init, { Wave } from "@shiro-rs/wasm/web";
+import { Wave } from "@shiro-rs/wasm/bundler";
 import { expose } from "comlink";
 
 import { alignRecording } from "../features/alignment/inference";
@@ -8,18 +7,12 @@ import type { VoicebankFormat } from "../features/alignment/oto-generation";
 import { AcousticModelTrainer } from "../features/alignment/training";
 import type { AcousticModel } from "../features/alignment/types";
 
-let initialization: ReturnType<typeof init> | undefined;
-const initialize = async () => {
-  initialization ??= init({ module_or_path: wasmUrl });
-  await initialization;
-};
-const align = async (
+const align = (
   model: AcousticModel,
   bytes: Uint8Array,
   phones: string[],
   format: VoicebankFormat
 ) => {
-  await initialize();
   const result = alignRecording(model, bytes, phones);
   if (format !== "cv") {
     return { ...result, cvOnset: null };
@@ -36,8 +29,7 @@ const align = async (
 };
 
 let trainer: AcousticModelTrainer | undefined;
-const prepareTraining = async (model: AcousticModel) => {
-  await initialize();
+const prepareTraining = (model: AcousticModel) => {
   trainer?.free();
   trainer = new AcousticModelTrainer(model);
 };
@@ -67,3 +59,4 @@ const finishTraining = () => {
 const api = { align, prepareTraining, addTrainingRecording, finishTraining };
 export type AlignmentWorker = typeof api;
 expose(api);
+postMessage("ready");

@@ -54,6 +54,7 @@ export const inferRecordings = async ({
     { type: "module" }
   );
   const align = wrap<AlignmentWorker>(worker);
+  const ready = Promise.withResolvers<null>();
   const interruption = Promise.withResolvers<never>();
   const abort = () => {
     worker.terminate();
@@ -68,6 +69,10 @@ export const inferRecordings = async ({
     interruption.reject(new Error("自動推定Workerの結果を読み取れません。"));
   };
   const trainingProgress = (event: MessageEvent<unknown>) => {
+    if (event.data === "ready") {
+      ready.resolve(null);
+      return;
+    }
     const parsed = trainingProgressSchema.safeParse(event.data);
     if (parsed.success && !signal.aborted) {
       onTrainingProgress(parsed.data.completed, parsed.data.total);
@@ -78,6 +83,7 @@ export const inferRecordings = async ({
   worker.addEventListener("messageerror", decodeFailed);
   worker.addEventListener("message", trainingProgress);
   try {
+    await Promise.race([ready.promise, interruption.promise]);
     let acousticModel = model;
     if (adapt) {
       await Promise.race([align.prepareTraining(model), interruption.promise]);

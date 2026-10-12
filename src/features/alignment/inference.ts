@@ -11,11 +11,11 @@ import {
   PhoneMap,
   rawfloat_write,
   Wave,
-} from "@shiro-rs/wasm/web";
+} from "@shiro-rs/wasm/bundler";
 
 import type { AcousticModel, AlignmentResult, PhoneInterval } from "./types";
 
-/** 初期化済みWASMで実行する。Worker以外から重い推定を呼ばない。 */
+/** Worker以外から重い推定を呼ばない。 */
 export const alignRecording = (
   modelData: AcousticModel,
   bytes: Uint8Array,

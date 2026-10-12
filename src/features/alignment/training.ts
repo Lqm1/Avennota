@@ -4,8 +4,8 @@ import {
   Model,
   SegmentationDocument,
   TrainingOptions,
-} from "@shiro-rs/wasm/web";
-import type { IterationReport, TrainingResult } from "@shiro-rs/wasm/web";
+} from "@shiro-rs/wasm/bundler";
+import type { IterationReport, TrainingResult } from "@shiro-rs/wasm/bundler";
 
 import { alignRecording } from "./inference";
 import type { AcousticModel } from "./types";
