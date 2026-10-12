@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyOtoSet, parseOto, serializeOto } from "../oto/oto-set";
+import {
+  createEmptyOtoSet,
+  isOtoLine,
+  parseOto,
+  serializeOto,
+} from "../oto/oto-set";
 import type { AlignedRecording } from "./client";
 import { parseMorae } from "./japanese";
 import {
   applyOtoSuggestions,
   continuousTiming,
   generateOtoSuggestions,
+  generateSelectedOtoSuggestions,
   readCvTimingTable,
 } from "./oto-generation";
 
@@ -309,5 +315,73 @@ describe("推定境界から原音設定への変換", () => {
         oto: { alias: "i -1_A4", offset: 2250, preutter: 250 },
       },
     });
+  });
+});
+
+describe("複数形式の同時生成", () => {
+  const options = {
+    formats: new Set<"cv" | "vcv" | "cvvc">(["cv", "vcv", "cvvc"]),
+    bpm: 120,
+    suffix: "_A4",
+    cvTimings: new Map(),
+  };
+
+  it("CV・VCV・CVVCをまとめ、CV・VV・語尾を形式間で二重に生成しない", () => {
+    const rows = generateSelectedOtoSuggestions(recording, options);
+    expect(rows.map((row) => row.alias)).toStrictEqual([
+      "あ_A4",
+      "か_A4",
+      "い_A4",
+      "- あ_A4",
+      "a か_A4",
+      "a い_A4",
+      "i R_A4",
+      "a k_A4",
+    ]);
+    expect(rows.find((row) => row.alias === "i R_A4")).toStrictEqual(
+      generate("vcv").at(-1)
+    );
+  });
+
+  it("同じWAV内の繰り返しは保持し、重複上限と連番を適用できる", () => {
+    const repeated = {
+      ...recording,
+      morae: [
+        { kana: "あ", phones: ["a"] },
+        { kana: "あ", phones: ["a"] },
+      ],
+      intervals: [
+        { name: "a", start: 0.5, end: 1 },
+        { name: "a", start: 1, end: 2 },
+      ],
+    };
+    const rows = generateSelectedOtoSuggestions(repeated, options);
+    expect(rows.filter((row) => row.alias === "あ_A4")).toHaveLength(2);
+    const set = applyOtoSuggestions(
+      createEmptyOtoSet(),
+      rows,
+      "generate",
+      0,
+      "_A4"
+    );
+    expect(
+      set.lines.filter(isOtoLine).map((line) => line.parsed.oto.alias)
+    ).toContain("あ2_A4");
+    const limited = applyOtoSuggestions(
+      createEmptyOtoSet(),
+      rows,
+      "generate",
+      1,
+      "_A4"
+    );
+    expect(
+      limited.lines.filter(isOtoLine).map((line) => line.parsed.oto.alias)
+    ).not.toContain("あ2_A4");
+    expect(
+      generateSelectedOtoSuggestions(recording, {
+        ...options,
+        formats: new Set(),
+      })
+    ).toHaveLength(0);
   });
 });

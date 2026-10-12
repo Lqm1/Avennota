@@ -14,13 +14,13 @@ import { transcriptionFromFilename } from "../alignment/japanese";
 import { loadJapaneseModel, phoneInventory } from "../alignment/models";
 import {
   applyOtoSuggestions,
-  generateOtoSuggestions,
+  generateSelectedOtoSuggestions,
   readCvTimingTable,
 } from "../alignment/oto-generation";
 import type { CvTiming, VoicebankFormat } from "../alignment/oto-generation";
 import {
   readRecordingIndex,
-  recordingTranscript,
+  readRecordingTranscripts,
 } from "../alignment/recordings";
 import { regularizeRepeatedVowels } from "../alignment/rhythm";
 import type { BoundaryCorrection } from "../alignment/rhythm";
@@ -33,6 +33,8 @@ import {
   PARAM_KEYS,
   PARAM_LABELS,
 } from "../oto/oto-set";
+import { RecordingTempoField } from "./recording-tempo";
+import type { RecordingTempo } from "./recording-tempo";
 import { showEditorPanel } from "./settings";
 import {
   editorStore,
@@ -97,13 +99,23 @@ export const AlignmentDialog = () => {
   const [selected, setSelected] = useState(() => new Set(wavs));
   const [transcripts, setTranscripts] = useState(new Map<string, string>());
   const [index, setIndex] = useState(new Map<string, string[]>());
-  const [format, setFormat] = useState<VoicebankFormat>("vcv");
+  const [outputFormats, setOutputFormats] = useState(
+    () => new Set<VoicebankFormat>(["vcv"])
+  );
   const [mode, setMode] = useState<"generate" | "update">(
     workspace.kind === "open" && workspace.session.baseline !== null
       ? "update"
       : "generate"
   );
-  const [bpm, setBpm] = useState(120);
+  const [tempo, setTempo] = useState<RecordingTempo>({
+    kind: "default",
+    bpm: 120,
+  });
+  const { bpm } = tempo;
+  const selectedWavs = useMemo(
+    () => wavs.filter((wav) => selected.has(wav)),
+    [wavs, selected]
+  );
   const [adapt, setAdapt] = useState(true);
   const [suffix, setSuffix] = useState("");
   const [filenameSuffix, setFilenameSuffix] = useState("");
@@ -165,7 +177,9 @@ export const AlignmentDialog = () => {
     if (
       current.kind !== "open" ||
       active.current !== null ||
-      selected.size === 0
+      selected.size === 0 ||
+      outputFormats.size === 0 ||
+      tempo.kind === "estimating"
     ) {
       return;
     }
@@ -174,41 +188,14 @@ export const AlignmentDialog = () => {
     setState({ kind: "running", message: "発音列を確認しています" });
     await runInferenceTask(
       async () => {
-        let recordingIndex = index;
-        if (recordingIndex.size === 0) {
-          const names = await current.session.folder.listFiles();
-          const name = names.find(
-            (entry) => entry.toLowerCase() === "index.csv"
-          );
-          if (name !== undefined) {
-            recordingIndex = readRecordingIndex(
-              textOf(await current.session.folder.read(name))
-            );
-          }
-        }
+        const recordings = await readRecordingTranscripts({
+          folder: current.session.folder,
+          wavs: selectedWavs,
+          index,
+          transcripts,
+          filenameSuffix,
+        });
         controller.signal.throwIfAborted();
-        const priority = new Map(
-          [...recordingIndex.keys()].map((name, at) => [name, at])
-        );
-        const recordings = wavs
-          .filter((wav) => selected.has(wav))
-          .toSorted(
-            (a, b) =>
-              (priority.get(a.toLocaleLowerCase("ja")) ??
-                Number.MAX_SAFE_INTEGER) -
-              (priority.get(b.toLocaleLowerCase("ja")) ??
-                Number.MAX_SAFE_INTEGER)
-          )
-          .map((wav) =>
-            recordingTranscript(
-              wav,
-              transcripts.get(wav) ??
-                (recordingIndex.has(wav.toLocaleLowerCase("ja"))
-                  ? undefined
-                  : transcriptionFromFilename(wav, filenameSuffix)),
-              recordingIndex.get(wav.toLocaleLowerCase("ja"))
-            )
-          );
         setState({
           kind: "running",
           message: "音響モデルを読み込んでいます（初回は取得します）",
@@ -219,7 +206,7 @@ export const AlignmentDialog = () => {
           folder: current.session.folder,
           model,
           recordings,
-          format,
+          format: outputFormats.has("cv") ? "cv" : "vcv",
           signal: controller.signal,
           adapt,
           onTrainingProgress: (completed, total) => {
@@ -240,12 +227,17 @@ export const AlignmentDialog = () => {
           },
         });
         const adjusted = aligned.map((recording) =>
-          format === "cv"
+          outputFormats.size === 1 && outputFormats.has("cv")
             ? { recording, corrections: [] }
             : regularizeRepeatedVowels(recording, bpm)
         );
         const suggestions = adjusted.flatMap(({ recording }) =>
-          generateOtoSuggestions(recording, { format, bpm, suffix, cvTimings })
+          generateSelectedOtoSuggestions(recording, {
+            formats: outputFormats,
+            bpm,
+            suffix,
+            cvTimings,
+          })
         );
         const before = current.history.present.otoSet;
         const after = applyOtoSuggestions(
@@ -466,25 +458,54 @@ export const AlignmentDialog = () => {
               <p className="text-xs text-slate-400">
                 学習後に境界を再推定します。多様な発音の録音を選んでください。少数の録音では精度が下がる場合があります。
               </p>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-2 text-xs text-slate-300">
+                  生成・補正するエイリアス（複数選択可）
+                </legend>
+                <div className="flex flex-wrap gap-4">
+                  {formats.map(({ id, label }) => (
+                    <Check
+                      key={id}
+                      label={label}
+                      value={outputFormats.has(id)}
+                      onChange={(value) => {
+                        setOutputFormats((previous) => {
+                          const next = new Set(previous);
+                          if (value) {
+                            next.add(id);
+                          } else {
+                            next.delete(id);
+                          }
+                          return next;
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400">
+                  収録形式にかかわらず、選んだエイリアスを同じ音素境界から作ります。CVVCにはCV・VC・VVを含み、形式間で共通するエイリアスは一度だけ出力します。
+                </p>
+              </fieldset>
               <div className="grid grid-cols-2 gap-3">
-                <SelectField
-                  label="音源形式"
-                  value={format}
-                  options={formats}
-                  onChange={setFormat}
-                />
                 <SelectField
                   label="反映方法"
                   value={mode}
                   options={modes}
                   onChange={setMode}
                 />
-                <MsField
-                  label="収録BPM（連続音の調整）"
-                  value={bpm}
-                  onCommit={setBpm}
-                  swatch={null}
-                />
+                {workspace.kind === "open" ? (
+                  <RecordingTempoField
+                    folder={workspace.session.folder}
+                    wavs={selectedWavs}
+                    index={index}
+                    transcripts={transcripts}
+                    filenameSuffix={filenameSuffix}
+                    model={customModel}
+                    value={tempo}
+                    onChange={setTempo}
+                    isDisabled={running}
+                  />
+                ) : null}
                 <MsField
                   label="重複エイリアスの上限（0＝無制限）"
                   value={limit}
@@ -643,7 +664,11 @@ export const AlignmentDialog = () => {
               ) : (
                 <Button
                   tone="primary"
-                  isDisabled={selected.size === 0}
+                  isDisabled={
+                    selected.size === 0 ||
+                    outputFormats.size === 0 ||
+                    tempo.kind === "estimating"
+                  }
                   onPress={() => {
                     void run();
                   }}

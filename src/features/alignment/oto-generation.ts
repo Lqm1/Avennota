@@ -269,6 +269,37 @@ export const generateOtoSuggestions = (
   return suggestions;
 };
 
+export const generateSelectedOtoSuggestions = (
+  recording: AlignedRecording,
+  options: {
+    formats: ReadonlySet<VoicebankFormat>;
+    bpm: number;
+    suffix: string;
+    cvTimings: ReadonlyMap<string, CvTiming>;
+  }
+): OtoSuggestion[] => {
+  const seen = new Set<string>();
+  const formats: VoicebankFormat[] = ["cv", "vcv", "cvvc"];
+  return formats
+    .filter((format) => options.formats.has(format))
+    .flatMap((format) => {
+      const occurrences = new Map<string, number>();
+      return generateOtoSuggestions(recording, { ...options, format }).filter(
+        (suggestion) => {
+          const occurrence = (occurrences.get(suggestion.alias) ?? 0) + 1;
+          occurrences.set(suggestion.alias, occurrence);
+          // 同じ出現を形式間で共有し、録音中の繰り返しは重複番号用に残す。
+          const key = `${suggestion.alias}\0${occurrence}`;
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          return true;
+        }
+      );
+    });
+};
+
 const suggestionQueue = (
   available: ReadonlyMap<string, OtoSuggestion[]>,
   wav: string,

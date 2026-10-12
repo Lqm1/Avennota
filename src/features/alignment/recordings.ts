@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { VoiceFolder } from "../../platform/files/types";
+import { decodeBytes, guessEncoding } from "../oto/encoding";
 import {
   moraeFromPhones,
   parseMorae,
@@ -103,3 +105,47 @@ export const filenameTranscript = (
   suffix: string
 ): RecordingTranscript =>
   recordingTranscript(wav, transcriptionFromFilename(wav, suffix));
+
+export const readRecordingTranscripts = async ({
+  folder,
+  wavs,
+  index,
+  transcripts,
+  filenameSuffix,
+}: {
+  folder: VoiceFolder;
+  wavs: string[];
+  index: ReadonlyMap<string, string[]>;
+  transcripts: ReadonlyMap<string, string>;
+  filenameSuffix: string;
+}): Promise<RecordingTranscript[]> => {
+  let recordingIndex = index;
+  if (recordingIndex.size === 0) {
+    const names = await folder.listFiles();
+    const name = names.find((entry) => entry.toLowerCase() === "index.csv");
+    if (name !== undefined) {
+      const bytes = await folder.read(name);
+      recordingIndex = readRecordingIndex(
+        decodeBytes(bytes, guessEncoding(bytes).encoding)
+      );
+    }
+  }
+  const priority = new Map(
+    [...recordingIndex.keys()].map((name, at) => [name, at])
+  );
+  return wavs
+    .toSorted(
+      (a, b) =>
+        (priority.get(a.toLocaleLowerCase("ja")) ?? Number.MAX_SAFE_INTEGER) -
+        (priority.get(b.toLocaleLowerCase("ja")) ?? Number.MAX_SAFE_INTEGER)
+    )
+    .map((wav) => {
+      const phones = recordingIndex.get(wav.toLocaleLowerCase("ja"));
+      return recordingTranscript(
+        wav,
+        transcripts.get(wav) ??
+          (phones ? undefined : transcriptionFromFilename(wav, filenameSuffix)),
+        phones
+      );
+    });
+};
