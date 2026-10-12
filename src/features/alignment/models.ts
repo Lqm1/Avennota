@@ -69,8 +69,9 @@ export const loadJapaneseModel = async (
     parameters,
     phonemap,
   };
-  if (collection.has(model.id)) {
-    return acousticModelSchema.parse(collection.get(model.id) ?? model);
+  const existing = collection.get(model.id);
+  if (existing) {
+    return acousticModelSchema.parse(existing);
   }
   await collection.insert(model).when("settled");
   signal.throwIfAborted();

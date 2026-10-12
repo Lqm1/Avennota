@@ -27,7 +27,12 @@ import type { BoundaryCorrection } from "../alignment/rhythm";
 import type { AcousticModel } from "../alignment/types";
 import { decodeBytes, guessEncoding } from "../oto/encoding";
 import type { OtoSet } from "../oto/oto-set";
-import { formatNumber, PARAM_KEYS, PARAM_LABELS } from "../oto/oto-set";
+import {
+  formatNumber,
+  isOtoLine,
+  PARAM_KEYS,
+  PARAM_LABELS,
+} from "../oto/oto-set";
 import { showEditorPanel } from "./settings";
 import {
   editorStore,
@@ -314,12 +319,12 @@ export const AlignmentDialog = () => {
     const before = new Map(state.before.lines.map((line) => [line.id, line]));
     const after = new Set(state.after.lines.map((line) => line.id));
     return {
-      changed: state.after.lines.filter(
-        (line) => line.parsed.kind === "oto" && before.get(line.id) !== line
-      ),
-      removed: state.before.lines.filter(
-        (line) => line.parsed.kind === "oto" && !after.has(line.id)
-      ),
+      changed: state.after.lines
+        .filter(isOtoLine)
+        .filter((line) => before.get(line.id) !== line),
+      removed: state.before.lines
+        .filter(isOtoLine)
+        .filter((line) => !after.has(line.id)),
     };
   }, [state]);
   const resultLines = preview.changed;
@@ -348,13 +353,11 @@ export const AlignmentDialog = () => {
                   生成で置き換える既存行（{preview.removed.length}行）
                 </summary>
                 <ul className="mt-2 max-h-40 overflow-auto">
-                  {preview.removed.slice(0, 100).map((line) =>
-                    line.parsed.kind === "oto" ? (
-                      <li key={line.id}>
-                        {line.parsed.oto.wav}: {line.parsed.oto.alias}
-                      </li>
-                    ) : null
-                  )}
+                  {preview.removed.slice(0, 100).map((line) => (
+                    <li key={line.id}>
+                      {line.parsed.oto.wav}: {line.parsed.oto.alias}
+                    </li>
+                  ))}
                 </ul>
                 {preview.removed.length > 100 ? (
                   <p>先頭100行を表示しています。</p>
@@ -410,27 +413,21 @@ export const AlignmentDialog = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {resultLines.slice(0, 100).map((line) =>
-                    line.parsed.kind === "oto" ? (
-                      <tr key={line.id}>
-                        <th
-                          className="p-1 text-left font-normal"
-                          title={line.parsed.oto.wav}
-                        >
-                          {line.parsed.oto.alias}
-                        </th>
-                        {PARAM_KEYS.map((key) => (
-                          <td key={key} className="p-1 font-mono">
-                            {formatNumber(
-                              line.parsed.kind === "oto"
-                                ? line.parsed.oto[key]
-                                : 0
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ) : null
-                  )}
+                  {resultLines.slice(0, 100).map((line) => (
+                    <tr key={line.id}>
+                      <th
+                        className="p-1 text-left font-normal"
+                        title={line.parsed.oto.wav}
+                      >
+                        {line.parsed.oto.alias}
+                      </th>
+                      {PARAM_KEYS.map((key) => (
+                        <td key={key} className="p-1 font-mono">
+                          {formatNumber(line.parsed.oto[key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

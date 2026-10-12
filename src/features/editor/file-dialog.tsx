@@ -62,14 +62,10 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
     }
   };
   const chooseIni = async () => {
+    const storageFolder =
+      workspace.kind === "open" ? workspace.session.storageFolder : undefined;
     const target =
-      mode === "save"
-        ? (destination ??
-          (workspace.kind === "open"
-            ? workspace.session.storageFolder
-            : undefined) ??
-          folder)
-        : folder;
+      mode === "save" ? (destination ?? storageFolder ?? folder) : folder;
     try {
       const picked = await target?.pickIni?.();
       if (picked !== null && picked !== undefined) {

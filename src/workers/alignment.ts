@@ -9,14 +9,17 @@ import { AcousticModelTrainer } from "../features/alignment/training";
 import type { AcousticModel } from "../features/alignment/types";
 
 let initialization: ReturnType<typeof init> | undefined;
+const initialize = async () => {
+  initialization ??= init({ module_or_path: wasmUrl });
+  await initialization;
+};
 const align = async (
   model: AcousticModel,
   bytes: Uint8Array,
   phones: string[],
   format: VoicebankFormat
 ) => {
-  initialization ??= init({ module_or_path: wasmUrl });
-  await initialization;
+  await initialize();
   const result = alignRecording(model, bytes, phones);
   if (format !== "cv") {
     return { ...result, cvOnset: null };
@@ -34,8 +37,7 @@ const align = async (
 
 let trainer: AcousticModelTrainer | undefined;
 const prepareTraining = async (model: AcousticModel) => {
-  initialization ??= init({ module_or_path: wasmUrl });
-  await initialization;
+  await initialize();
   trainer?.free();
   trainer = new AcousticModelTrainer(model);
 };

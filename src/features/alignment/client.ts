@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- WAVを順に転送してメモリ使用量を抑え、単一Workerで処理する。 */
 import { releaseProxy, transfer, wrap } from "comlink";
 import { z } from "zod";
 
@@ -83,14 +84,11 @@ export const inferRecordings = async ({
       let completed = 0;
       for (const recording of recordings) {
         onProgress(completed, recordings.length, `学習用: ${recording.wav}`);
-        // 単一Workerに学習用WAVを順に渡し、元のWAVは保持しない。
-        // eslint-disable-next-line no-await-in-loop
         const bytes = await Promise.race([
           folder.read(recording.wav),
           interruption.promise,
         ]);
         signal.throwIfAborted();
-        // eslint-disable-next-line no-await-in-loop
         await Promise.race([
           align.addTrainingRecording(
             recording.wav,
@@ -112,14 +110,11 @@ export const inferRecordings = async ({
     const results: AlignedRecording[] = [];
     for (const recording of recordings) {
       onProgress(results.length, recordings.length, recording.wav);
-      // 単一Workerへ順に送り、音源全体のWAVを同時にメモリへ読み込まない。
-      // eslint-disable-next-line no-await-in-loop
       const bytes = await Promise.race([
         folder.read(recording.wav),
         interruption.promise,
       ]);
       signal.throwIfAborted();
-      // eslint-disable-next-line no-await-in-loop
       const result = await Promise.race([
         align.align(
           acousticModel,
