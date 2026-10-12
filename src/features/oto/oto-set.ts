@@ -417,3 +417,22 @@ export const fileStem = (wav: string): string => {
   const dot = base.lastIndexOf(".");
   return dot > 0 ? base.slice(0, dot) : base;
 };
+
+export const effectiveAlias = (oto: Oto): string =>
+  oto.alias || fileStem(oto.wav);
+
+export const aliasCounts = (otoSet: OtoSet): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const line of otoSet.lines) {
+    if (isOtoLine(line)) {
+      const alias = effectiveAlias(line.parsed.oto);
+      counts.set(alias, (counts.get(alias) ?? 0) + 1);
+    }
+  }
+  return counts;
+};
+
+export const copyLine = (source: OtoLine, text = source.text): OtoLine => ({
+  ...createLine(text),
+  comment: source.comment,
+});

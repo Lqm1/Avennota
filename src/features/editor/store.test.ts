@@ -21,6 +21,8 @@ import {
   addLine,
   addLinesForUnlistedWavs,
   deleteLine,
+  deleteLineKeepingWav,
+  duplicateLine,
   editorStore,
   openVoiceFolder,
   redo,
@@ -285,6 +287,20 @@ describe("編集状態と保存", () => {
     expect(opened().history.present.otoSet.lines).toHaveLength(0);
     addLine("b.wav");
     expect(opened().history.present.selectedId).toBe(firstLine().id);
+  });
+
+  it("画面からの削除は同じWAVの最後の行を残し、複製した行なら消せる", async () => {
+    const { folder, platform } = fixture();
+    await openVoiceFolder(folder, platform);
+    const first = firstLine();
+    deleteLineKeepingWav(first.id);
+    expect(opened().history.present.otoSet.lines).toHaveLength(2);
+    expect(editorStore.state.notice?.tone).toBe("warning");
+    duplicateLine(first.id);
+    deleteLineKeepingWav(first.id);
+    expect(
+      opened().history.present.otoSet.lines.map((line) => line.text)
+    ).toStrictEqual(["a.wav=a,1.000,2,-30,4,5", "b.wav=b,1,2,3,4,5"]);
   });
 
   it("未登録WAVがなければ行オブジェクトを作らず、履歴を積まない", async () => {

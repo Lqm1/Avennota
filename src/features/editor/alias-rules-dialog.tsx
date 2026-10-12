@@ -5,7 +5,7 @@ import { Check } from "../../components/ui/check";
 import { EditorDialog } from "../../components/ui/editor-dialog";
 import { SelectField, TextAreaField } from "../../components/ui/field";
 import { pickDocument } from "../../platform/files/documents";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
+import { decodeText } from "../oto/encoding";
 import {
   duplicateByRules,
   parseAliasRules,
@@ -14,12 +14,12 @@ import {
 import type { AliasRuleMode } from "./alias-rules";
 import {
   BatchPreview,
-  closePanel,
   tryPreview,
   usePresent,
   useScope,
 } from "./batch-preview";
-import { errorText, notify } from "./store";
+import { closeEditorPanel } from "./settings";
+import { runTool } from "./store";
 
 const MODE_OPTIONS: { id: AliasRuleMode; label: string }[] = [
   { id: "exact", label: "完全一致（a お → a を）" },
@@ -57,7 +57,7 @@ export const AliasRulesDialog = () => {
   return (
     <EditorDialog
       title="規則でエイリアスを複製・置換"
-      onClose={closePanel}
+      onClose={closeEditorPanel}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-3">
@@ -87,21 +87,12 @@ export const AliasRulesDialog = () => {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Button
             onPress={() => {
-              void (async () => {
-                try {
-                  const file = await pickDocument(["ini", "csv", "txt"]);
-                  if (file !== null) {
-                    setText(
-                      decodeBytes(
-                        file.bytes,
-                        guessEncoding(file.bytes).encoding
-                      )
-                    );
-                  }
-                } catch (error) {
-                  notify("error", errorText(error));
+              void runTool(async () => {
+                const file = await pickDocument(["ini", "csv", "txt"]);
+                if (file !== null) {
+                  setText(decodeText(file.bytes));
                 }
-              })();
+              });
             }}
           >
             規則ファイルを読み込む

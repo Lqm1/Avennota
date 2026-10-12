@@ -10,7 +10,6 @@ import type { BatchResult } from "./batch";
 import {
   applyBatch,
   BatchPreview,
-  closePanel,
   tryPreview,
   usePresent,
   useScope,
@@ -18,7 +17,8 @@ import {
 import { narrowRows, rowFilterStore } from "./row-filter";
 import { extractLines, findMatches, replaceMatches } from "./row-query";
 import type { QueryField, QueryMode, RowQuery } from "./row-query";
-import { editorStore, errorText, notify } from "./store";
+import { closeEditorPanel } from "./settings";
+import { editorStore, errorText, notify, runTool } from "./store";
 import { writeSubset } from "./subset-export";
 
 type QueryAction = "filter" | "replace" | "delete" | "export";
@@ -104,7 +104,7 @@ export const QueryDialog = () => {
     if (written === null) {
       return;
     }
-    closePanel();
+    closeEditorPanel();
     if (deletion === null) {
       notify("info", `${written}へ${matched.size}行を書き出しました。`);
       return;
@@ -127,7 +127,7 @@ export const QueryDialog = () => {
   return (
     <EditorDialog
       title="検索・置換・抽出"
-      onClose={closePanel}
+      onClose={closeEditorPanel}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-3">
@@ -203,7 +203,7 @@ export const QueryDialog = () => {
               isDisabled={matches.length === 0}
               onPress={() => {
                 narrowRows(matches);
-                closePanel();
+                closeEditorPanel();
                 notify("info", `${matches.length}行に絞り込みました。`);
               }}
             >
@@ -269,18 +269,14 @@ export const QueryDialog = () => {
               </>
             ) : (
               <div className="flex justify-end gap-2">
-                <Button onPress={closePanel}>キャンセル</Button>
+                <Button onPress={closeEditorPanel}>キャンセル</Button>
                 <Button
                   tone="primary"
                   isDisabled={matches.length === 0}
                   onPress={() => {
-                    void (async () => {
-                      try {
-                        await exportMatches(null);
-                      } catch (exportError) {
-                        notify("error", errorText(exportError));
-                      }
-                    })();
+                    void runTool(async () => {
+                      await exportMatches(null);
+                    });
                   }}
                 >
                   書き出す

@@ -10,8 +10,8 @@ import { applyFileChanges, bytesEqual } from "../../platform/files/transaction";
 import type { OtoEncoding } from "../oto/encoding";
 import type { OtoLine, OtoParams, OtoSet } from "../oto/oto-set";
 import {
+  copyLine,
   createEmptyOtoSet,
-  createLine,
   createOtoLine,
   fileStem,
   insertLines,
@@ -24,6 +24,7 @@ import {
   setLineText,
   withParams,
 } from "../oto/oto-set";
+import { deleteLines } from "./batch";
 import { commentFileName, readComments, writeComments } from "./comments";
 import type { FolderBookmark } from "./folder-bookmark";
 import { rememberFolder, reopenBookmark } from "./folder-history";
@@ -162,6 +163,14 @@ export const ask = async (
 
 export const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+export const runTool = async (action: () => Promise<void>): Promise<void> => {
+  try {
+    await action();
+  } catch (error) {
+    notify("error", errorText(error));
+  }
+};
 
 /**
  * 現在の入力欄の編集を確定させる。React Ariaの入力欄はフォーカスを外したときに値を確定し、
@@ -359,7 +368,7 @@ export const duplicateLine = (lineId: OtoLine["id"]): void => {
     if (!source) {
       return workspace;
     }
-    const copy = { ...createLine(source.text), comment: source.comment };
+    const copy = copyLine(source);
     return commit(workspace, {
       otoSet: insertLines(otoSet, index + 1, [copy]),
       selectedId: copy.id,
@@ -380,6 +389,19 @@ export const deleteLine = (lineId: OtoLine["id"]): void => {
       selectedId: neighbor?.id ?? null,
     });
   });
+};
+
+export const deleteLineKeepingWav = (lineId: OtoLine["id"]): void => {
+  const { workspace } = get();
+  if (workspace.kind === "closed") {
+    return;
+  }
+  const { otoSet } = workspace.history.present;
+  if (deleteLines(otoSet, new Set([lineId]), false).otoSet === otoSet) {
+    notify("warning", "同じWAVの最後の行は削除できません。");
+    return;
+  }
+  deleteLine(lineId);
 };
 
 /** oto.iniに行がないWAVだけを追加する。初期値は自動推定ではない。 */

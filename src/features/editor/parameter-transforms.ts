@@ -1,6 +1,13 @@
+import { continuousTiming } from "../alignment/oto-generation";
+import { moveOffset, roundMs } from "../oto/geometry";
 import type { Oto, OtoParams, OtoSet } from "../oto/oto-set";
-import { PARAM_KEYS, setLineOto, withParams } from "../oto/oto-set";
-import { effectiveAlias, targetLines } from "./batch";
+import {
+  effectiveAlias,
+  PARAM_KEYS,
+  setLineOto,
+  withParams,
+} from "../oto/oto-set";
+import { CONTINUOUS_ALIAS, targetLines } from "./batch";
 import type { BatchEntry, BatchResult } from "./batch";
 
 export type ParameterOperation =
@@ -14,66 +21,49 @@ export interface ParameterOptions {
   continuousOnly: boolean;
 }
 
-const CONTINUOUS = /^[aiueonN] /u;
-
 /** ちょうど半分の負の値も0から遠ざける。 */
 export const roundTo = (value: number, digits: number): number => {
   const scale = 10 ** digits;
   return (Math.sign(value) * Math.round(Math.abs(value) * scale)) / scale;
 };
 
-/** 位置の差から作る値は保存時の小数3桁に揃え、浮動小数点の誤差を残さない。 */
-const ms = (value: number): number => roundTo(value, 3);
+export const keepPreutterAt = (oto: OtoParams, preutter: number): OtoParams =>
+  moveOffset(oto, oto.offset + oto.preutter - preutter);
 
-/** 正の右ブランクは末尾からの距離なので変えない。 */
-export const moveOffset = (
-  oto: OtoParams,
-  offset: number
-): Pick<OtoParams, "offset" | "consonant" | "cutoff"> => ({
-  offset: ms(offset),
-  consonant: ms(oto.offset + oto.consonant - offset),
-  cutoff: oto.cutoff < 0 ? ms(offset - (oto.offset - oto.cutoff)) : oto.cutoff,
-});
-
-const nextParams = (
-  oto: OtoParams,
+const planOperation = (
   operation: ParameterOperation,
   digits: number
-): OtoParams => {
+): ((oto: OtoParams) => OtoParams) => {
   const round = (value: number) => roundTo(value, digits);
-  const preutterAt = oto.offset + oto.preutter;
   switch (operation.kind) {
     case "overlapThird": {
-      return { ...oto, overlap: round(oto.preutter / 3) };
+      return (oto) => ({ ...oto, overlap: round(oto.preutter / 3) });
     }
     case "preutter": {
+      if (!(Number.isFinite(operation.value) && operation.value > 0)) {
+        throw new Error("先行発声は0より大きい値を指定してください。");
+      }
       const preutter = round(operation.value);
-      return {
-        ...moveOffset(oto, preutterAt - preutter),
-        preutter,
-        overlap: round(operation.value / 3),
-      };
+      const overlap = round(operation.value / 3);
+      return (oto) => ({ ...keepPreutterAt(oto, preutter), preutter, overlap });
     }
     case "ratio": {
-      const distance = oto.preutter - oto.overlap;
-      const preutter = round((distance * 3) / 2);
-      return {
-        ...moveOffset(oto, preutterAt - preutter),
-        preutter,
-        overlap: round(distance / 2),
+      return (oto) => {
+        const distance = oto.preutter - oto.overlap;
+        const preutter = round((distance * 3) / 2);
+        return {
+          ...keepPreutterAt(oto, preutter),
+          preutter,
+          overlap: round(distance / 2),
+        };
       };
     }
     case "bpm": {
-      const beat = 60_000 / operation.bpm;
-      const preutter = round(beat / 2);
-      const overlap = round(beat / 6);
-      return {
-        offset: ms(preutterAt - preutter),
-        preutter,
-        overlap,
-        consonant: round((beat * 3) / 4),
-        cutoff: -round(beat + overlap),
-      };
+      const timing = continuousTiming(operation.bpm, round);
+      return (oto) => ({
+        ...timing,
+        offset: roundMs(oto.offset + oto.preutter - timing.preutter),
+      });
     }
     default: {
       return operation satisfies never;
@@ -94,20 +84,9 @@ export const layoutProblem = (oto: OtoParams, next: OtoParams): string => {
   return "";
 };
 
-export const validateOperation = (operation: ParameterOperation): string => {
-  if (
-    operation.kind === "preutter" &&
-    !(Number.isFinite(operation.value) && operation.value > 0)
-  ) {
-    return "先行発声は0より大きい値を指定してください。";
-  }
-  if (
-    operation.kind === "bpm" &&
-    !(Number.isFinite(operation.bpm) && operation.bpm > 0)
-  ) {
-    return "BPMは0より大きい値を指定してください。";
-  }
-  return "";
+const isContinuous = (oto: Oto): boolean => {
+  const lead = CONTINUOUS_ALIAS.exec(effectiveAlias(oto))?.groups?.lead;
+  return lead !== undefined && lead !== "-";
 };
 
 export const transformParameters = (
@@ -116,15 +95,12 @@ export const transformParameters = (
   operation: ParameterOperation,
   options: ParameterOptions
 ): BatchResult => {
-  const invalid = validateOperation(operation);
-  if (invalid !== "") {
-    throw new Error(invalid);
-  }
+  const transform = planOperation(operation, options.digits);
   const entries: BatchEntry[] = [];
   const changes = new Map<string, Oto>();
   for (const line of targetLines(otoSet, ids)) {
     const { oto } = line.parsed;
-    if (options.continuousOnly && !CONTINUOUS.test(effectiveAlias(oto))) {
+    if (options.continuousOnly && !isContinuous(oto)) {
       continue;
     }
     if (PARAM_KEYS.some((key) => !Number.isFinite(oto[key]))) {
@@ -137,7 +113,7 @@ export const transformParameters = (
       });
       continue;
     }
-    const params = nextParams(oto, operation, options.digits);
+    const params = transform(oto);
     const after = withParams(oto, params);
     if (after === oto) {
       continue;

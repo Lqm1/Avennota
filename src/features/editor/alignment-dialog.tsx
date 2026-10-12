@@ -27,7 +27,7 @@ import {
 import { regularizeRepeatedVowels } from "../alignment/rhythm";
 import type { BoundaryCorrection } from "../alignment/rhythm";
 import type { AcousticModel } from "../alignment/types";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
+import { decodeText } from "../oto/encoding";
 import type { OtoSet, ParsedOtoLine } from "../oto/oto-set";
 import {
   formatNumber,
@@ -81,8 +81,6 @@ const modeHints: Record<ApplyMode, string> = {
   generate:
     "対象WAVの既存行を削除し、推定結果をもとに原音設定行を新しく生成し直します。",
 };
-const textOf = (bytes: Uint8Array<ArrayBuffer>) =>
-  decodeBytes(bytes, guessEncoding(bytes).encoding);
 const PAGE_SIZE = 50;
 const PREVIEW_LIMIT = 100;
 const runInferenceTask = async (
@@ -575,7 +573,7 @@ export const AlignmentDialog = () => {
         if (!phonemap) {
           return;
         }
-        const mapText = textOf(phonemap.bytes);
+        const mapText = decodeText(phonemap.bytes);
         phoneInventory(mapText);
         setCustomModel({
           id: "custom",
@@ -589,9 +587,9 @@ export const AlignmentDialog = () => {
           return;
         }
         if (kind === "index") {
-          setIndex(readRecordingIndex(textOf(file.bytes)));
+          setIndex(readRecordingIndex(decodeText(file.bytes)));
         } else {
-          setCvTimings(readCvTimingTable(textOf(file.bytes)));
+          setCvTimings(readCvTimingTable(decodeText(file.bytes)));
         }
       }
       setState({ kind: "idle" });

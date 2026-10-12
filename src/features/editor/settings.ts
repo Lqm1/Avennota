@@ -187,3 +187,6 @@ export const editorPanelStore = createStore<EditorPanel>(null);
 export const showEditorPanel = (panel: EditorPanel): void => {
   editorPanelStore.setState(() => panel);
 };
+export const closeEditorPanel = (): void => {
+  showEditorPanel(null);
+};

@@ -19,7 +19,7 @@ import {
   updateSettings,
 } from "./settings";
 import {
-  deleteLine,
+  deleteLineKeepingWav,
   duplicateLine,
   editorStore,
   redo,
@@ -60,21 +60,6 @@ const selected = (action: (id: string) => void): void => {
   );
   if (ids.size > 1) {
     notify("warning", "この操作は1行だけ選択してください。");
-    return;
-  }
-  const line = otoSet.lines.find((candidate) => candidate.id === selectedId);
-  const wav = line?.parsed.kind === "oto" ? line.parsed.oto.wav : null;
-  if (
-    action === deleteLine &&
-    wav !== null &&
-    !otoSet.lines.some(
-      (other) =>
-        other.id !== selectedId &&
-        other.parsed.kind === "oto" &&
-        other.parsed.oto.wav === wav
-    )
-  ) {
-    notify("warning", "同じWAVの最後の行は削除できません。");
     return;
   }
   action(selectedId);
@@ -238,7 +223,7 @@ export const useEditorShortcuts = ({
           selected(duplicateLine);
         },
         delete: () => {
-          selected(deleteLine);
+          selected(deleteLineKeepingWav);
         },
         left: () => audio?.scroll(-0.1),
         right: () => audio?.scroll(0.1),

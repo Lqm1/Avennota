@@ -12,21 +12,18 @@ import type { BatchEntry, BatchResult, BatchScope } from "./batch";
 import { cellSelectionStore, selectedCells } from "./cell-selection";
 import { ParamSwatch } from "./param-swatch";
 import { rowFilterStore, visibleLines } from "./row-filter";
-import { showEditorPanel } from "./settings";
+import { closeEditorPanel } from "./settings";
 import type { Snapshot } from "./store";
 import {
   editorStore,
   errorText,
   notify,
+  runTool,
   transformOtoSet,
   useEditor,
 } from "./store";
 
 const PREVIEW_LIMIT = 300;
-
-export const closePanel = () => {
-  showEditorPanel(null);
-};
 
 export const usePresent = (): Snapshot | null =>
   useEditor((state) =>
@@ -256,27 +253,23 @@ export const BatchPreview = ({
         />
       ) : null}
       <div className="flex justify-end gap-2">
-        <Button onPress={closePanel}>キャンセル</Button>
+        <Button onPress={closeEditorPanel}>キャンセル</Button>
         <Button
           tone="primary"
           isDisabled={busy || changes === 0 || (counts.error > 0 && !partial)}
           onPress={() => {
-            void (async () => {
-              try {
-                if (onApply === undefined) {
-                  applyBatch(result);
-                  closePanel();
-                  notify(
-                    "info",
-                    `${changes}行の変更を反映しました。Undoで戻せます。`
-                  );
-                } else {
-                  await onApply(result);
-                }
-              } catch (applyError) {
-                notify("error", errorText(applyError));
+            void runTool(async () => {
+              if (onApply === undefined) {
+                applyBatch(result);
+                closeEditorPanel();
+                notify(
+                  "info",
+                  `${changes}行の変更を反映しました。Undoで戻せます。`
+                );
+              } else {
+                await onApply(result);
               }
-            })();
+            });
           }}
         >
           {applyLabel}

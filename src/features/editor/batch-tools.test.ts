@@ -147,14 +147,14 @@ describe("検索・置換・抽出", () => {
     );
   });
 
-  it("一括削除はWAVの最後の行を既定で残す", () => {
+  it("一括削除はWAVの最初の行を既定で残す", () => {
     const source = load(
       "a.wav=x,0,0,0,0,0\na.wav=y,0,0,0,0,0\nb.wav=z,0,0,0,0,0\n"
     );
     const kept = deleteLines(source, all(source), false);
-    expect(kinds(kept)).toStrictEqual(["delete", "skip", "skip"]);
+    expect(kinds(kept)).toStrictEqual(["skip", "delete", "skip"]);
     expect(texts(kept.otoSet)).toStrictEqual([
-      "a.wav=y,0,0,0,0,0",
+      "a.wav=x,0,0,0,0,0",
       "b.wav=z,0,0,0,0,0",
     ]);
     const removed = deleteLines(source, all(source), true);

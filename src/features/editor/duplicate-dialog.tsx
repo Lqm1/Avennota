@@ -20,15 +20,11 @@ import {
   PARAM_KEYS,
   PARAM_LABELS,
 } from "../oto/oto-set";
-import {
-  BatchPreview,
-  closePanel,
-  tryPreview,
-  usePresent,
-} from "./batch-preview";
+import { BatchPreview, tryPreview, usePresent } from "./batch-preview";
 import { findDuplicateGroups, removeDuplicates } from "./duplicate-aliases";
 import type { DuplicateGroup } from "./duplicate-aliases";
 import { rowFilterStore } from "./row-filter";
+import { closeEditorPanel } from "./settings";
 import { editorStore, errorText, notify, select } from "./store";
 
 const GROUP_LIMIT = 100;
@@ -57,7 +53,7 @@ const audition = async (line: ParsedOtoLine, duration: number | undefined) => {
 const showInTable = (group: DuplicateGroup, lineId: string) => {
   rowFilterStore.setState(() => new Set(group.lineIds));
   select(lineId);
-  closePanel();
+  closeEditorPanel();
   notify(
     "info",
     `「${group.key}」の${group.lineIds.length}行を表示しています。`
@@ -117,7 +113,7 @@ export const DuplicateDialog = () => {
   return (
     <EditorDialog
       title="重複エイリアスの整理"
-      onClose={closePanel}
+      onClose={closeEditorPanel}
       className="max-w-5xl"
     >
       <div className="flex flex-col gap-3">

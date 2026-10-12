@@ -5,12 +5,8 @@ import { Check } from "../../components/ui/check";
 import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField } from "../../components/ui/field";
 import { processWavs } from "./file-tools";
-import { showEditorPanel } from "./settings";
+import { closeEditorPanel } from "./settings";
 import { ask, editorStore } from "./store";
-
-const close = () => {
-  showEditorPanel(null);
-};
 
 export const WavCutDialog = () => {
   const [head, setHead] = useState(0);
@@ -42,7 +38,7 @@ export const WavCutDialog = () => {
     ) {
       return;
     }
-    close();
+    closeEditorPanel();
     await processWavs([...workspace.session.wavs.values()], {
       dc: false,
       mono: false,
@@ -52,7 +48,7 @@ export const WavCutDialog = () => {
     });
   };
   return (
-    <EditorDialog title="wavの両端をカット" onClose={close}>
+    <EditorDialog title="wavの両端をカット" onClose={closeEditorPanel}>
       <div className="flex flex-col gap-3">
         <MsField
           label="冒頭からのカット長（秒）"
@@ -75,7 +71,7 @@ export const WavCutDialog = () => {
           ブランク値より長くカットした場合、位置がずれることがあります。
         </p>
         <div className="flex justify-end gap-2">
-          <Button onPress={close}>キャンセル</Button>
+          <Button onPress={closeEditorPanel}>キャンセル</Button>
           <Button
             tone="primary"
             isDisabled={head < 0 || tail < 0 || head + tail === 0}

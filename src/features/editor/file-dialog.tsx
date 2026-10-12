@@ -5,12 +5,8 @@ import { EditorDialog } from "../../components/ui/editor-dialog";
 import { CommitTextField, SelectField } from "../../components/ui/field";
 import { getFilePlatform } from "../../platform/files";
 import type { VoiceFolder } from "../../platform/files";
-import { showEditorPanel } from "./settings";
+import { closeEditorPanel } from "./settings";
 import { openFolder, openIni, saveAs, useEditor, notify } from "./store";
-
-const close = () => {
-  showEditorPanel(null);
-};
 
 export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
   const [destination, setDestination] = useState<VoiceFolder | undefined>();
@@ -58,7 +54,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
       ? openIni(name)
       : saveAs(name, destination));
     if (success) {
-      close();
+      closeEditorPanel();
     }
   };
   const chooseIni = async () => {
@@ -83,7 +79,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
           ? "原音パラメータの読み込み"
           : "名前を付けて保存（Ctrl/Cmd+Shift+S）"
       }
-      onClose={close}
+      onClose={closeEditorPanel}
     >
       <div className="flex flex-col gap-3">
         <p className="text-xs text-slate-400">
@@ -124,7 +120,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
           <CommitTextField label="ファイル名" value={name} onCommit={setName} />
         )}
         <div className="flex justify-end gap-2">
-          <Button onPress={close}>キャンセル</Button>
+          <Button onPress={closeEditorPanel}>キャンセル</Button>
           <Button
             isDisabled={workspace.kind === "closed" || name === ""}
             tone="primary"

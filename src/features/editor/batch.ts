@@ -1,5 +1,5 @@
 import type { Oto, OtoLine, OtoSet, ParsedOtoLine } from "../oto/oto-set";
-import { createLine, fileStem, formatOto, isOtoLine } from "../oto/oto-set";
+import { isOtoLine } from "../oto/oto-set";
 
 export type BatchScope = "all" | "visible" | "selection";
 
@@ -17,14 +17,13 @@ export interface BatchResult {
   entries: BatchEntry[];
 }
 
+export const CONTINUOUS_ALIAS = /^(?<lead>[aiueonN-]) (?<body>.+)$/u;
+
 export const SMALL_KANA = "ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ";
 
 const SPECIAL = /[.*+?^${}()|[\]\\/]/gu;
 export const literalPattern = (text: string): string =>
   text.replaceAll(SPECIAL, String.raw`\$&`);
-
-export const effectiveAlias = (oto: Oto): string =>
-  oto.alias || fileStem(oto.wav);
 
 export const aliasProblem = (alias: string): string => {
   if (alias === "") {
@@ -34,22 +33,6 @@ export const aliasProblem = (alias: string): string => {
     return "エイリアスにカンマか改行が入ります";
   }
   return "";
-};
-
-export const copyLine = (source: OtoLine, oto: Oto): OtoLine => ({
-  ...createLine(formatOto(oto)),
-  comment: source.comment,
-});
-
-export const aliasCounts = (otoSet: OtoSet): Map<string, number> => {
-  const counts = new Map<string, number>();
-  for (const line of otoSet.lines) {
-    if (isOtoLine(line)) {
-      const alias = effectiveAlias(line.parsed.oto);
-      counts.set(alias, (counts.get(alias) ?? 0) + 1);
-    }
-  }
-  return counts;
 };
 
 export const targetLines = (
@@ -79,7 +62,7 @@ export const deleteLines = (
   }
   const entries: BatchEntry[] = [];
   const removed = new Set<string>();
-  for (const line of otoSet.lines) {
+  for (const line of otoSet.lines.toReversed()) {
     if (!ids.has(line.id)) {
       continue;
     }
@@ -118,6 +101,7 @@ export const deleteLines = (
       note: last ? "このWAVの原音設定がなくなります" : "",
     });
   }
+  entries.reverse();
   return {
     base: otoSet,
     otoSet:

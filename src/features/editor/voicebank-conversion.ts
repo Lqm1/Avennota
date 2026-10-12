@@ -1,18 +1,24 @@
 import { parseMorae } from "../alignment/japanese";
 import type { CvTiming, SyllableTiming } from "../alignment/oto-generation";
+import { roundMs } from "../oto/geometry";
 import type { Oto, OtoLine, OtoParams, OtoSet } from "../oto/oto-set";
-import { PARAM_KEYS, withParams } from "../oto/oto-set";
 import {
   aliasCounts,
-  aliasProblem,
-  appendLines,
   copyLine,
   effectiveAlias,
+  formatOto,
+  PARAM_KEYS,
+  withParams,
+} from "../oto/oto-set";
+import {
+  aliasProblem,
+  appendLines,
+  CONTINUOUS_ALIAS,
   SMALL_KANA,
   targetLines,
 } from "./batch";
 import type { BatchEntry, BatchResult } from "./batch";
-import { layoutProblem, moveOffset, roundTo } from "./parameter-transforms";
+import { keepPreutterAt, layoutProblem } from "./parameter-transforms";
 
 export interface ConversionOptions {
   cv: boolean;
@@ -27,7 +33,6 @@ export interface ConversionOptions {
   allowDuplicates: boolean;
 }
 
-const CONTINUOUS = /^(?<lead>[aiueonN-]) (?<body>.+)$/u;
 const KANA = /^[ぁ-ゖァ-ヺ]+$/u;
 const PLOSIVES = new Set(["k", "ky", "t", "p", "py"]);
 
@@ -91,7 +96,7 @@ const splitSyllable = (
 };
 
 const splitLead = (alias: string): { lead: string; body: string } | null => {
-  const match = CONTINUOUS.exec(alias);
+  const match = CONTINUOUS_ALIAS.exec(alias);
   const lead = match?.groups?.lead;
   const body = match?.groups?.body;
   return lead === undefined || body === undefined || !KANA.test(body.charAt(0))
@@ -99,15 +104,12 @@ const splitLead = (alias: string): { lead: string; body: string } | null => {
     : { lead, body };
 };
 
-const ms = (value: number) => roundTo(value, 3);
-
 const cvParams = (
   oto: OtoParams,
   timing: CvTiming,
   tableConsonant: number | null
 ): OtoParams => {
-  const offset = oto.offset + oto.preutter - timing.preutter;
-  const moved = moveOffset(oto, offset);
+  const moved = keepPreutterAt(oto, timing.preutter);
   return {
     ...moved,
     preutter: timing.preutter,
@@ -115,7 +117,7 @@ const cvParams = (
     consonant:
       tableConsonant === null
         ? moved.consonant
-        : ms(timing.preutter + tableConsonant),
+        : roundMs(timing.preutter + tableConsonant),
   };
 };
 
@@ -127,11 +129,11 @@ const vcParams = (
 ): OtoParams => {
   const tail = plosive ? length / 2 : length;
   return {
-    offset: ms(oto.offset - length),
+    offset: roundMs(oto.offset - length),
     preutter: oto.preutter,
-    overlap: ms(oto.preutter / 3),
-    consonant: ms(oto.preutter + tail / 3),
-    cutoff: -ms(oto.preutter + tail),
+    overlap: roundMs(oto.preutter / 3),
+    consonant: roundMs(oto.preutter + tail / 3),
+    cutoff: -roundMs(oto.preutter + tail),
   };
 };
 
@@ -223,7 +225,7 @@ export const convertVoicebank = (
     });
     if (kind === "add") {
       known.set(alias, (known.get(alias) ?? 0) + 1);
-      generated.push(copyLine(source.line, after));
+      generated.push(copyLine(source.line, formatOto(after)));
     }
   };
   if (options.cv) {

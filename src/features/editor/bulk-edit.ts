@@ -1,13 +1,15 @@
+import { moveOffset } from "../oto/geometry";
 import {
+  effectiveAlias,
   fileStem,
   formatNumber,
   replaceLine,
-  removeLine,
   setLineOto,
   withParams,
   PARAM_KEYS,
 } from "../oto/oto-set";
 import type { Oto, OtoSet } from "../oto/oto-set";
+import { deleteLines } from "./batch";
 import { CELL_COLUMNS } from "./cell-selection";
 import type { CellPoint } from "./cell-selection";
 
@@ -81,7 +83,7 @@ export const editCell = (
       Number.isFinite(oto.offset) &&
       Number.isFinite(original.offset)
     ) {
-      const delta = oto.offset - original.offset;
+      const moved = moveOffset(original, oto.offset);
       const changes: Partial<Oto> = {};
       for (const column of [
         "consonant",
@@ -95,13 +97,7 @@ export const editCell = (
           token !== "" &&
           Number.isFinite(original[column])
         ) {
-          if (column === "cutoff") {
-            if (original.cutoff < 0) {
-              changes.cutoff = original.cutoff + delta;
-            }
-          } else {
-            changes[column] = original[column] - delta;
-          }
+          changes[column] = moved[column];
         }
       }
       oto = withParams(oto, changes);
@@ -275,7 +271,7 @@ export const changeAliases = (
       continue;
     }
     const { oto } = line.parsed;
-    const [name, suffix] = splitName(oto.alias || fileStem(oto.wav));
+    const [name, suffix] = splitName(effectiveAlias(oto));
     const chars = oto.alias.slice(change.deletePrefix);
     const alias = chars.slice(
       0,
@@ -302,20 +298,5 @@ export const changeAliases = (
       })
     );
   }
-  for (const id of deletions.toReversed()) {
-    const target = next.lines.find((line) => line.id === id);
-    const wav = target?.parsed.kind === "oto" ? target.parsed.oto.wav : null;
-    if (
-      wav !== null &&
-      next.lines.some(
-        (line) =>
-          line.id !== id &&
-          line.parsed.kind === "oto" &&
-          line.parsed.oto.wav === wav
-      )
-    ) {
-      next = removeLine(next, id);
-    }
-  }
-  return next;
+  return deleteLines(next, new Set(deletions), false).otoSet;
 };

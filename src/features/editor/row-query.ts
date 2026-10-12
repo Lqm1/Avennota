@@ -1,11 +1,6 @@
 import type { OtoLine, OtoSet } from "../oto/oto-set";
-import { isOtoLine, setLineOto } from "../oto/oto-set";
-import {
-  aliasProblem,
-  effectiveAlias,
-  literalPattern,
-  SMALL_KANA,
-} from "./batch";
+import { effectiveAlias, isOtoLine, setLineOto } from "../oto/oto-set";
+import { aliasProblem, literalPattern, SMALL_KANA } from "./batch";
 import type { BatchEntry, BatchResult } from "./batch";
 
 export type QueryField = "alias" | "wav" | "comment" | "text";

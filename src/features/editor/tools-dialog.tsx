@@ -7,7 +7,7 @@ import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField, CommitTextField } from "../../components/ui/field";
 import { getFilePlatform } from "../../platform/files";
 import { pickDocument, exportDocument } from "../../platform/files/documents";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
+import { decodeText } from "../oto/encoding";
 import { parseOto, serializeOto } from "../oto/oto-set";
 import { commentFileName, readComments, writeComments } from "./comments";
 import { reopenBookmark, useFolderHistory } from "./folder-history";
@@ -19,27 +19,18 @@ import {
   ustTargets,
 } from "./manual-tools";
 import { rowFilterStore } from "./row-filter";
-import { showEditorPanel } from "./settings";
+import { closeEditorPanel } from "./settings";
 import {
   confirmDiscardChanges,
   ask,
   editorStore,
   notify,
   openVoiceFolder,
+  runTool,
   transformOtoSet,
   useEditor,
 } from "./store";
 
-const close = () => {
-  showEditorPanel(null);
-};
-export const runTool = async (action: () => Promise<void>): Promise<void> => {
-  try {
-    await action();
-  } catch (error) {
-    notify("error", String(error));
-  }
-};
 const action = (handler: () => Promise<void>) => {
   void runTool(handler);
 };
@@ -67,9 +58,7 @@ export const ToolsDialog = () => {
       return;
     }
     if (kind === "ust") {
-      const notes = parseUstNotes(
-        decodeBytes(file.bytes, guessEncoding(file.bytes).encoding)
-      );
+      const notes = parseUstNotes(decodeText(file.bytes));
       const current = editorStore.state.workspace;
       if (current.kind === "closed") {
         return;
@@ -126,7 +115,7 @@ export const ToolsDialog = () => {
     }
   };
   return (
-    <EditorDialog title="ファイル・コメント・UST" onClose={close}>
+    <EditorDialog title="ファイル・コメント・UST" onClose={closeEditorPanel}>
       <div className="flex flex-col gap-5">
         <fieldset
           className="flex flex-col gap-2"
@@ -258,7 +247,7 @@ export const ToolsDialog = () => {
                     const parent = await workspace.session.folder.parent?.();
                     if (parent) {
                       await openVoiceFolder(parent, await getFilePlatform());
-                      close();
+                      closeEditorPanel();
                     }
                   });
                 }}
@@ -284,7 +273,7 @@ export const ToolsDialog = () => {
                     );
                   }
                   await openVoiceFolder(folder, await getFilePlatform());
-                  close();
+                  closeEditorPanel();
                 });
               }}
             >

@@ -5,13 +5,13 @@ import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField, SelectField } from "../../components/ui/field";
 import {
   BatchPreview,
-  closePanel,
   tryPreview,
   usePresent,
   useScope,
 } from "./batch-preview";
 import { transformParameters } from "./parameter-transforms";
 import type { ParameterOperation } from "./parameter-transforms";
+import { closeEditorPanel } from "./settings";
 
 type OperationKind = ParameterOperation["kind"];
 
@@ -65,7 +65,7 @@ export const ParameterDialog = () => {
   return (
     <EditorDialog
       title="先行発声・オーバーラップの調整"
-      onClose={closePanel}
+      onClose={closeEditorPanel}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-3">

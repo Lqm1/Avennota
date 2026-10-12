@@ -1,7 +1,9 @@
 import type { OtoSet } from "../oto/oto-set";
 import {
-  createOtoLine,
+  copyLine,
+  effectiveAlias,
   fileStem,
+  formatOto,
   insertLines,
   isOtoLine,
   parseOto,
@@ -18,11 +20,11 @@ export const sortRows = (set: OtoSet, mode: "kana" | "wav"): OtoSet => {
     const left =
       mode === "wav"
         ? fileStem(a.parsed.oto.wav)
-        : kanaSortKey(a.parsed.oto.alias || fileStem(a.parsed.oto.wav));
+        : kanaSortKey(effectiveAlias(a.parsed.oto));
     const right =
       mode === "wav"
         ? fileStem(b.parsed.oto.wav)
-        : kanaSortKey(b.parsed.oto.alias || fileStem(b.parsed.oto.wav));
+        : kanaSortKey(effectiveAlias(b.parsed.oto));
     return left < right ? -1 : Number(left > right);
   });
   let index = 0;
@@ -53,9 +55,7 @@ export const complementAliases = (
   const aliases = new Set([
     ...known,
     ...set.lines.flatMap((line) =>
-      line.parsed.kind === "oto"
-        ? [line.parsed.oto.alias || fileStem(line.parsed.oto.wav)]
-        : []
+      line.parsed.kind === "oto" ? [effectiveAlias(line.parsed.oto)] : []
     ),
   ]);
   let { lines } = set;
@@ -101,10 +101,7 @@ export const complementAliases = (
       pass.splice(
         i + 1,
         0,
-        ...added.map((alias) => ({
-          ...createOtoLine(oto.wav, alias, oto),
-          comment: line.comment,
-        }))
+        ...added.map((alias) => copyLine(line, formatOto({ ...oto, alias })))
       );
     }
     lines = pass;

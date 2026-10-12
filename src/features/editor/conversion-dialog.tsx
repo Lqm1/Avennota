@@ -7,15 +7,15 @@ import { MsField, SelectField } from "../../components/ui/field";
 import { pickDocument } from "../../platform/files/documents";
 import { readSyllableTable } from "../alignment/oto-generation";
 import type { SyllableTiming } from "../alignment/oto-generation";
-import { decodeBytes, guessEncoding } from "../oto/encoding";
+import { decodeText } from "../oto/encoding";
 import {
   BatchPreview,
-  closePanel,
   tryPreview,
   usePresent,
   useScope,
 } from "./batch-preview";
-import { errorText, notify } from "./store";
+import { closeEditorPanel } from "./settings";
+import { runTool } from "./store";
 import { convertVoicebank } from "./voicebank-conversion";
 import type { ConversionOptions } from "./voicebank-conversion";
 
@@ -52,7 +52,7 @@ export const ConversionDialog = () => {
   return (
     <EditorDialog
       title="連続音からCV・VCを追加"
-      onClose={closePanel}
+      onClose={closeEditorPanel}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-3">
@@ -69,24 +69,15 @@ export const ConversionDialog = () => {
             <div className="flex items-center gap-2">
               <Button
                 onPress={() => {
-                  void (async () => {
-                    try {
-                      const file = await pickDocument(["csv", "txt"]);
-                      if (file !== null) {
-                        setTable({
-                          name: file.name,
-                          rows: readSyllableTable(
-                            decodeBytes(
-                              file.bytes,
-                              guessEncoding(file.bytes).encoding
-                            )
-                          ),
-                        });
-                      }
-                    } catch (error) {
-                      notify("error", errorText(error));
+                  void runTool(async () => {
+                    const file = await pickDocument(["csv", "txt"]);
+                    if (file !== null) {
+                      setTable({
+                        name: file.name,
+                        rows: readSyllableTable(decodeText(file.bytes)),
+                      });
                     }
-                  })();
+                  });
                 }}
               >
                 読み込む

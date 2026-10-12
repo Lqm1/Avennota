@@ -1,6 +1,6 @@
 import type { OtoSet } from "../oto/oto-set";
-import { isOtoLine } from "../oto/oto-set";
-import { deleteLines, effectiveAlias } from "./batch";
+import { effectiveAlias, isOtoLine } from "../oto/oto-set";
+import { deleteLines } from "./batch";
 import type { BatchResult } from "./batch";
 
 export interface DuplicateGroup {

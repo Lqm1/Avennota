@@ -1,6 +1,6 @@
 import {
   createOtoLine,
-  fileStem,
+  effectiveAlias,
   setLineOto,
   withParams,
 } from "../oto/oto-set";
@@ -20,18 +20,21 @@ export interface CvTiming {
 }
 
 const truncate = (value: number) => Math.trunc(value * 1000) / 1000;
-export const continuousTiming = (bpm: number): OtoParams => {
+export const continuousTiming = (
+  bpm: number,
+  round: (value: number) => number = truncate
+): OtoParams => {
   if (!Number.isFinite(bpm) || bpm <= 0) {
     throw new Error("収録BPMは0より大きい数値を指定してください。");
   }
   const beat = 60_000 / bpm;
-  const overlap = truncate(beat / 6);
+  const overlap = round(beat / 6);
   return {
     offset: 0,
-    preutter: truncate(beat / 2),
+    preutter: round(beat / 2),
     overlap,
-    consonant: truncate((beat * 3) / 4),
-    cutoff: truncate(-(beat + overlap)),
+    consonant: round((beat * 3) / 4),
+    cutoff: round(-(beat + overlap)),
   };
 };
 
@@ -390,7 +393,7 @@ export const applyOtoSuggestions = (
     }
     const { oto } = line.parsed;
     const wav = oto.wav.toLocaleLowerCase("ja");
-    const alias = oto.alias || fileStem(oto.wav);
+    const alias = effectiveAlias(oto);
     const queue = suggestionQueue(available, wav, alias, mode, suffix);
     const suggestion = queue?.shift();
     if (suggestion) {

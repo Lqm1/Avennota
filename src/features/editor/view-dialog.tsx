@@ -3,11 +3,7 @@ import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { EditorDialog } from "../../components/ui/editor-dialog";
 import { MsField } from "../../components/ui/field";
-import { showEditorPanel, updateSettings, useSettings } from "./settings";
-
-const close = () => {
-  showEditorPanel(null);
-};
+import { closeEditorPanel, updateSettings, useSettings } from "./settings";
 
 export const ViewDialog = ({ mode }: { mode: "bpm" | "opacity" }) => {
   const settings = useSettings();
@@ -17,7 +13,7 @@ export const ViewDialog = ({ mode }: { mode: "bpm" | "opacity" }) => {
   return (
     <EditorDialog
       title={mode === "bpm" ? "時間軸のBPM" : "画面の透過（Windowsのみ）"}
-      onClose={close}
+      onClose={closeEditorPanel}
     >
       <div className="flex flex-col gap-3">
         {mode === "bpm" ? (
@@ -39,7 +35,7 @@ export const ViewDialog = ({ mode }: { mode: "bpm" | "opacity" }) => {
           />
         )}
         <div className="flex justify-end gap-2">
-          <Button onPress={close}>キャンセル</Button>
+          <Button onPress={closeEditorPanel}>キャンセル</Button>
           <Button
             tone="primary"
             isDisabled={
@@ -53,7 +49,7 @@ export const ViewDialog = ({ mode }: { mode: "bpm" | "opacity" }) => {
               } else {
                 updateSettings({ advanced: { ...settings.advanced, opacity } });
               }
-              close();
+              closeEditorPanel();
             }}
           >
             OK

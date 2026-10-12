@@ -23,7 +23,7 @@ import type { OtoRow, ParsedOtoRow } from "./rows";
 import { settingsStore } from "./settings";
 import {
   addLine,
-  deleteLine,
+  deleteLineKeepingWav,
   duplicateLine,
   updateAlias,
   updateLineText,
@@ -159,7 +159,7 @@ export const Inspector = ({
         aria-label="行を削除（Ctrl/Cmd+D）"
         tone="danger"
         onPress={() => {
-          deleteLine(row.id);
+          deleteLineKeepingWav(row.id);
         }}
       >
         <Trash className="size-3.5" />

@@ -1,11 +1,14 @@
 import type { OtoLine, OtoSet } from "../oto/oto-set";
-import { setLineOto } from "../oto/oto-set";
 import {
   aliasCounts,
-  aliasProblem,
-  appendLines,
   copyLine,
   effectiveAlias,
+  formatOto,
+  setLineOto,
+} from "../oto/oto-set";
+import {
+  aliasProblem,
+  appendLines,
   literalPattern,
   SMALL_KANA,
   targetLines,
@@ -107,7 +110,7 @@ export const duplicateByRules = (
         continue;
       }
       known.set(after.alias, (known.get(after.alias) ?? 0) + 1);
-      added.push(copyLine(line, after));
+      added.push(copyLine(line, formatOto(after)));
       entries.push({
         kind: "add",
         lineId: line.id,

@@ -113,6 +113,9 @@ const encodeShiftJis = (text: string): Uint8Array => {
 };
 
 /** 文字列を指定の文字コードへ変換する。表せない文字があればUnencodableErrorを投げ、文字を置き換えない。 */
+export const decodeText = (bytes: Uint8Array): string =>
+  decodeBytes(bytes, guessEncoding(bytes).encoding);
+
 export const encodeText = (text: string, encoding: OtoEncoding): Uint8Array => {
   if (encoding === "utf-8") {
     return new TextEncoder().encode(text);

@@ -1,4 +1,4 @@
-import { decodeBytes, encodeText, guessEncoding } from "../oto/encoding";
+import { decodeText, encodeText } from "../oto/encoding";
 import type { OtoSet } from "../oto/oto-set";
 
 export const commentFileName = (ini: string): string =>
@@ -7,9 +7,7 @@ export const readComments = (
   set: OtoSet,
   bytes: Uint8Array<ArrayBuffer>
 ): OtoSet => {
-  const comments = decodeBytes(bytes, guessEncoding(bytes).encoding).split(
-    /\r\n|\n|\r/u
-  );
+  const comments = decodeText(bytes).split(/\r\n|\n|\r/u);
   let index = 0;
   return {
     ...set,

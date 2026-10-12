@@ -22,9 +22,9 @@ import {
   transformOtoSet,
   useEditor,
   openFolder,
+  runTool,
   save,
 } from "./store";
-import { runTool } from "./tools-dialog";
 
 const panel = (id: Exclude<EditorPanel, null>) => () => {
   showEditorPanel(id);

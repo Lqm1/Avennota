@@ -1,9 +1,8 @@
 import type { EditorSettings } from "../editor/settings";
-import { cutoffEnd, toPositions } from "./geometry";
+import { cutoffEnd, roundMs, toPositions } from "./geometry";
 import type { Marker } from "./geometry";
 import type { OtoParams } from "./oto-set";
 
-const round = (value: number) => Math.round(value * 1000) / 1000;
 const relativeMovement = (
   marker: Marker,
   settings: Pick<EditorSettings, "offsetMode" | "preutterMode">
@@ -34,8 +33,9 @@ export const moveMarkerWithConstraints = (
     );
     return {
       ...params,
-      offset: round(params.offset + delta),
-      cutoff: params.cutoff < 0 ? params.cutoff : round(params.cutoff - delta),
+      offset: roundMs(params.offset + delta),
+      cutoff:
+        params.cutoff < 0 ? params.cutoff : roundMs(params.cutoff - delta),
     };
   }
   p[marker] = marker === "overlap" ? position : Math.max(0, position);
@@ -81,14 +81,14 @@ export const moveMarkerWithConstraints = (
     );
   }
   return {
-    offset: round(p.offset),
-    overlap: round(p.overlap - p.offset),
-    preutter: round(p.preutter - p.offset),
-    consonant: round(p.consonant - p.offset),
+    offset: roundMs(p.offset),
+    overlap: roundMs(p.overlap - p.offset),
+    preutter: roundMs(p.preutter - p.offset),
+    consonant: roundMs(p.consonant - p.offset),
     cutoff:
       settings.cutoffMode === "negative"
-        ? round(p.offset - p.cutoff)
-        : round(duration - p.cutoff),
+        ? roundMs(p.offset - p.cutoff)
+        : roundMs(duration - p.cutoff),
   };
 };
 
@@ -97,11 +97,11 @@ export const shiftRelativeMarkers = (
   delta: number
 ): OtoParams => ({
   ...params,
-  offset: round(params.offset + delta),
+  offset: roundMs(params.offset + delta),
   cutoff:
     params.cutoff < 0
       ? params.cutoff
-      : round(Math.max(0, params.cutoff - delta)),
+      : roundMs(Math.max(0, params.cutoff - delta)),
 });
 export const cutoffInMode = (
   params: OtoParams,
