@@ -388,6 +388,54 @@ export const addLinesForUnlistedWavs = (): number => {
   return added;
 };
 
+/** ブラウザがフォルダ経由のiniアクセスを拒否したときに、既存のiniを選ぶか新しく作るかを利用者に決めてもらう。 */
+const chooseRestrictedIni = async (
+  folder: VoiceFolder,
+  otoName: string
+): Promise<{ name: string; created: boolean }> => {
+  const choice = await ask({
+    title: "iniファイルを選んでください",
+    message: folder.createIni
+      ? "ブラウザがフォルダ内のiniファイルの読み書きを制限しているため、ファイルを個別に選んでください。oto.iniがある場合は「iniファイルを選ぶ」、まだない場合は「新しく作る」を選びます。「新しく作る」で既存のファイルを選ぶと、その中身は消えます。"
+      : "ブラウザがフォルダ内のiniファイルの読み書きを制限しているため、音源フォルダの直下にあるoto.iniなどの原音設定を個別に選んでください。",
+    actions: [
+      { id: "select", label: "iniファイルを選ぶ" },
+      ...(folder.createIni ? [{ id: "create", label: "新しく作る" }] : []),
+      { id: "cancel", label: "キャンセル" },
+    ],
+  });
+  let picked: string | null = null;
+  if (choice === "select") {
+    picked = (await folder.pickIni?.()) ?? null;
+  } else if (choice === "create") {
+    picked = (await folder.createIni?.(otoName)) ?? null;
+  }
+  if (picked === null) {
+    throw new FileAccessError(
+      "cancelled",
+      "原音設定の読み込みをキャンセルしました。"
+    );
+  }
+  return { name: picked, created: choice === "create" };
+};
+
+const openNotice = (
+  otoName: string,
+  baseline: Session["baseline"],
+  created: boolean
+): Notice | null => {
+  if (created) {
+    return { text: `空の${otoName}を作成しました。`, tone: "info" };
+  }
+  if (baseline === null) {
+    return {
+      text: "oto.iniがないため、新しく作成します。保存するまでファイルは作られません。",
+      tone: "info",
+    };
+  }
+  return null;
+};
+
 export const openVoiceFolder = async (
   folder: VoiceFolder,
   platform: FilePlatform,
@@ -406,6 +454,7 @@ export const openVoiceFolder = async (
       files.find((name) => name.toLowerCase() === OTO_NAME) ??
       OTO_NAME;
     let baseline: Session["baseline"];
+    let created = false;
     try {
       baseline = (await folder.stat(otoName))
         ? await folder.read(otoName)
@@ -418,26 +467,11 @@ export const openVoiceFolder = async (
       ) {
         throw error;
       }
-      const choice = await ask({
-        title: "iniファイルを選んでください",
-        message:
-          "ブラウザがフォルダからiniファイルを開く操作を制限しています。音源フォルダの直下にあるoto.iniなどの原音設定を個別に選んでください。",
-        actions: [
-          { id: "select", label: "iniファイルを選ぶ" },
-          { id: "cancel", label: "キャンセル" },
-        ],
-      });
-      const picked = choice === "select" ? await folder.pickIni() : null;
-      if (picked === null) {
-        throw new FileAccessError(
-          "cancelled",
-          "原音設定の読み込みをキャンセルしました。"
-        );
-      }
-      otoName = picked;
+      ({ created, name: otoName } = await chooseRestrictedIni(folder, otoName));
       baseline = await folder.read(otoName);
     }
-    let otoSet = baseline ? parseOto(baseline) : createEmptyOtoSet();
+    let otoSet =
+      baseline && !created ? parseOto(baseline) : createEmptyOtoSet();
     const commentName = commentFileName(otoName);
     const commentBaseline = files.includes(commentName)
       ? await folder.read(commentName)
@@ -473,13 +507,7 @@ export const openVoiceFolder = async (
         session,
         history: createHistory({ otoSet, selectedId: firstOto?.id ?? null }),
       },
-      notice:
-        baseline === null
-          ? {
-              text: "oto.iniがないため、新しく作成します。保存するまでファイルは作られません。",
-              tone: "info",
-            }
-          : null,
+      notice: openNotice(otoName, baseline, created),
       recoveryError,
     });
     if (otoSet.encodingCertainty === "invalid") {

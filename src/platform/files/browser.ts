@@ -35,40 +35,51 @@ export const createBrowserFolder = (
   iniFiles: FileSystemFileHandle[] = []
 ): VoiceFolder => {
   const selected = new Map(iniFiles.map((handle) => [handle.name, handle]));
+  const iniTypes: FilePickerAcceptType[] = [
+    {
+      description: "原音設定",
+      accept: { "application/octet-stream": [".ini"] },
+    },
+  ];
+  const adoptIni = async (handle: FileSystemFileHandle): Promise<string> => {
+    const path = await directory.resolve(handle);
+    if (path?.length !== 1 || !handle.name.toLowerCase().endsWith(".ini")) {
+      throw new FileAccessError(
+        "read",
+        "選んだ音源フォルダの直下にあるiniファイルを選んでください。"
+      );
+    }
+    if ((await handle.requestPermission({ mode: "readwrite" })) !== "granted") {
+      throw new FileAccessError(
+        "permission",
+        "iniファイルへの書き込みが許可されていません。"
+      );
+    }
+    selected.set(handle.name, handle);
+    return handle.name;
+  };
   const folder: VoiceFolder = {
     async pickIni() {
       try {
         const [handle] = await window.showOpenFilePicker({
           multiple: false,
-          types: [
-            {
-              description: "原音設定",
-              accept: { "application/octet-stream": [".ini"] },
-            },
-          ],
+          types: iniTypes,
         });
-        if (handle === undefined) {
-          return null;
-        }
-        const path = await directory.resolve(handle);
-        if (path?.length !== 1 || !handle.name.toLowerCase().endsWith(".ini")) {
-          throw new FileAccessError(
-            "read",
-            "選んだ音源フォルダの直下にあるiniファイルを選んでください。"
-          );
-        }
-        if (
-          (await handle.requestPermission({ mode: "readwrite" })) !== "granted"
-        ) {
-          throw new FileAccessError(
-            "permission",
-            "iniファイルへの書き込みが許可されていません。"
-          );
-        }
-        selected.set(handle.name, handle);
-        return handle.name;
+        return handle === undefined ? null : await adoptIni(handle);
       } catch (error) {
         throw toFileAccessError(error, "read", "iniファイルの選択");
+      }
+    },
+    async createIni(name) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          startIn: directory,
+          suggestedName: name,
+          types: iniTypes,
+        });
+        return await adoptIni(handle);
+      } catch (error) {
+        throw toFileAccessError(error, "write", "iniファイルの作成");
       }
     },
     readRange: async (name, offset, length) => {

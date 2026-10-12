@@ -179,6 +179,41 @@ describe("編集状態と保存", () => {
     expect(selectIsDirty(editorStore.state)).toBeFalsy();
   });
 
+  it("iniアクセスが制限されたら新しく作ったiniへ保存できる", async () => {
+    const { folder, platform } = fixture();
+    folder.files.delete("oto.ini");
+    vi.spyOn(folder, "listFiles").mockResolvedValue(["a.wav", "b.wav"]);
+    vi.spyOn(folder, "stat").mockRejectedValueOnce(
+      new FileAccessError("permission", "Name is not allowed")
+    );
+    const selectedFolder: VoiceFolder = {
+      name: folder.name,
+      listFiles: folder.listFiles.bind(folder),
+      stat: folder.stat.bind(folder),
+      read: folder.read.bind(folder),
+      write: folder.write.bind(folder),
+      ensureWritable: folder.ensureWritable.bind(folder),
+      pickIni: async () => await Promise.resolve(null),
+      createIni: async (name) => {
+        folder.files.set(name, new Uint8Array());
+        return await Promise.resolve(name);
+      },
+    };
+    const opening = openVoiceFolder(selectedFolder, platform);
+    await vi.waitFor(() => {
+      expect(editorStore.state.dialog).not.toBeNull();
+    });
+    editorStore.state.dialog?.resolve("create");
+    await opening;
+    expect(opened().session.otoName).toBe("oto.ini");
+    expect(opened().history.present.otoSet.lines).toHaveLength(0);
+    expect(addLinesForUnlistedWavs()).toBe(2);
+    await expect(save()).resolves.toBeTruthy();
+    expect(new TextDecoder().decode(folder.files.get("oto.ini"))).toContain(
+      "a.wav="
+    );
+  });
+
   it("iniの個別選択をキャンセルしたら現在の編集内容を維持する", async () => {
     const { folder, platform } = fixture();
     await openVoiceFolder(folder, platform);

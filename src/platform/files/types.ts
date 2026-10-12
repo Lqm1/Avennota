@@ -11,6 +11,8 @@ export interface FileStat {
 export interface VoiceFolder {
   /** フォルダ一覧に出ないiniを利用者が個別に選ぶ。キャンセル時はnull。 */
   pickIni?: () => Promise<string | null>;
+  /** フォルダ経由で作れないiniを保存ダイアログで作る。選んだ時点で空のファイルになり、既存のファイルも空になる。 */
+  createIni?: (name: string) => Promise<string | null>;
   readRange?: (
     name: string,
     offset: number,

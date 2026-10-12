@@ -84,7 +84,8 @@ React AriaのTableは行データが変わると全行のコレクションを�
 - IndexedDBは`avennota`データベースを共有する。`folders`に最近使ったフォルダ20件、`recovery`にWebの復元データとフォルダ参照、`audio`にクリック音、`models`にSHIROの音響モデルとphonemapを置く。保存・削除はトランザクションの完了を待つ。
 - oto.iniの保存手順: 入力中の値を確定 → 書き込み権限の確認 → 元ファイルを読み直して比較（外部変更なら確認）→ `oto.ini.bak`へ保存前の内容を書く → `oto.ini`を書く → 読み戻して照合 → 保存済みにする。
 - ネイティブ版は同じフォルダの`oto.ini.avennota-tmp`へ書いてから置き換える。ブラウザ版は書き込みストリームの`close()`完了で書き込み完了とする。
-- ブラウザで個別に選んだiniは、`FileSystemFileHandle`を名前ごとに保持して読み込み・情報取得・書き込みに使う。`resolve`で音源フォルダ直下のファイルであることを確認する。ファイル参照はフォルダ履歴と復元データに保存する。
+- WindowsのChromium系ブラウザは`.ini`を危険なファイル種別として扱い、フォルダ経由の`getFileHandle`を拒否し、フォルダの一覧からも除く。そのためiniは`showOpenFilePicker`で選ぶか、`showSaveFilePicker`で作る。保存ダイアログは選んだ時点でファイルを作り、既存なら空にする。
+- ブラウザで個別に選んだ・作ったiniは、`FileSystemFileHandle`を名前ごとに保持して読み込み・情報取得・書き込みに使う。`resolve`で音源フォルダ直下のファイルであることを確認する。ファイル参照はフォルダ履歴と復元データに保存する。
 - 復元データは編集が止まって1秒後に記録する。ネイティブ版はアプリデータ領域の`recovery/*.json`。元ファイルのSHA-256を記録し、復元時に変わっていれば確認する。
 - Webの復元データはIndexedDBコレクションの`importData`で置き換える。フォルダ参照を更新用draftに通さず、IndexedDBのstructured cloneで保存する。
 - ネイティブ版はpersisted-scopeプラグインで前回選んだフォルダのスコープを保持する。

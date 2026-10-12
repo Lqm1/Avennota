@@ -8,7 +8,7 @@ Avennotaの初版はUTAU音源の原音設定エディター。音源フォル�
 
 - ネイティブ版の対象はWindows 11（x64・ARM64）・Windows 10（x86）、macOS 14以降（Apple Silicon・Intel）、Linux（x64・ARM64・x86）。Linux x86の配布基準はDebian 12。Web版は各OSの現行のデスクトップChrome・Edgeを対象とする。
 - Web版はHTTPSで公開し、File System Access APIでユーザーが選んだ音源フォルダを直接編集する。APIがない環境では非対応を案内する。Tauri APIを起動時に呼ばない。
-- フォルダ経由のiniアクセスが制限された場合は、音源フォルダ直下の既存iniを個別に選ぶ。選択したファイルを読み込み・上書き保存・履歴・復元に使い、一覧に出ないファイルを新規と判断しない。
+- フォルダ経由のiniアクセスが制限された場合は、音源フォルダ直下の既存iniを個別に選ぶか、保存ダイアログで新しいiniを作る。選択・作成したファイルを読み込み・上書き保存・履歴・復元に使い、一覧に出ないファイルを新規と判断しない。
 - Windows版はNSISインストーラーとポータブルexeを配布する。どちらもフロントエンドを含み、WebView2 Runtime導入後はオフラインで編集できる。
 - macOS版はapp・DMG、Linux版はdeb・AppImageを配布形式とする。macOSはシステムのWKWebView、LinuxはWebKitGTK 4.1を使う。
 - 編集・音声処理・保存・復元は3つのOSで共有する。透過率の設定はWindows版だけに適用する。
