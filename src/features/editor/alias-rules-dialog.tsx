@@ -18,13 +18,13 @@ import { closeEditorPanel } from "./settings";
 import { runTool } from "./store";
 
 const MODE_OPTIONS: { id: AliasRuleMode; label: string }[] = [
-  { id: "exact", label: "完全一致（a お → a を）" },
+  { id: "exact", label: "完全一致（例: a お → a を）" },
   {
     id: "keepSuffix",
-    label: "先頭一致・後ろの装飾を残す（a お_C4 → a を_C4）",
+    label: "前方一致・接尾辞を保持（例: a お_C4 → a を_C4）",
   },
-  { id: "keepPrefix", label: "末尾一致・前の装飾を残す（強a お → 強a を）" },
-  { id: "keepBoth", label: "途中の一致・前後を残す" },
+  { id: "keepPrefix", label: "後方一致・接頭辞を保持（例: 強a お → 強a を）" },
+  { id: "keepBoth", label: "部分一致・前後を保持" },
 ];
 
 export const AliasRulesDialog = () => {
@@ -49,7 +49,7 @@ export const AliasRulesDialog = () => {
         });
   return (
     <EditorDialog
-      title="規則でエイリアスを複製・置換"
+      title="規則によるエイリアスの複製・置換"
       onClose={closeEditorPanel}
       className="max-w-4xl"
     >
@@ -60,20 +60,20 @@ export const AliasRulesDialog = () => {
             label="処理"
             value={operation}
             options={[
-              { id: "duplicate", label: "複製して末尾へ追加" },
-              { id: "rename", label: "元の行のエイリアスを置換" },
+              { id: "duplicate", label: "複製して末尾に追加" },
+              { id: "rename", label: "対象行のエイリアスを置換" },
             ]}
             onChange={setOperation}
           />
           <SelectField
-            label="一致のしかた"
+            label="一致条件"
             value={mode}
             options={MODE_OPTIONS}
             onChange={setMode}
           />
         </div>
         <TextAreaField
-          label="規則（1行に「変換元,変換先」。上から順に適用）"
+          label="変換規則（1行につき「変換元,変換先」を記述。上から順に適用）"
           value={text}
           onChange={setText}
         />
@@ -88,23 +88,23 @@ export const AliasRulesDialog = () => {
               });
             }}
           >
-            規則ファイルを読み込む
+            規則ファイルを読み込む…
           </Button>
           <Check
-            label="既にあるエイリアスと重なっても作る"
+            label="既存のエイリアスと重複しても生成する"
             value={allowDuplicates}
             onChange={setAllowDuplicates}
           />
           {operation === "rename" && mode === "keepBoth" ? (
             <Check
-              label="1行の中のすべての一致を置換する"
+              label="エイリアス内のすべての一致箇所を置換"
               value={all}
               onChange={setAll}
             />
           ) : null}
         </div>
         <p className="text-[11px] text-slate-400">
-          複製は数値・コメント・追加欄を元の行から引き継ぎます。「き」の規則は「きゃ」のように小書きかなが続く箇所には一致しません。
+          複製時は各パラメータ・コメントを元の行から引き継ぎます。「き」等の規則は「きゃ」のように拗音（小書き文字）が続く箇所には一致しません。
         </p>
         <BatchPreview
           {...preview}

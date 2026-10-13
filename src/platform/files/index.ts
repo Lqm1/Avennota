@@ -35,10 +35,10 @@ export const unsupportedReason = (): string | null => {
     return null;
   }
   if (typeof window.showDirectoryPicker !== "function") {
-    return "このブラウザはフォルダを直接編集するFile System Access APIに対応していません。デスクトップ版のChromeまたはEdgeを使うか、デスクトップアプリ版を使ってください。";
+    return "お使いのブラウザはフォルダを直接編集する機能（File System Access API）に対応していません。デスクトップ版のGoogle ChromeやMicrosoft Edgeをご利用いただくか、デスクトップアプリ版をご利用ください。";
   }
   if (!window.isSecureContext) {
-    return "フォルダの編集にはHTTPSで開く必要があります。";
+    return "フォルダの編集にはセキュアな接続（HTTPS環境）が必要です。";
   }
   return null;
 };

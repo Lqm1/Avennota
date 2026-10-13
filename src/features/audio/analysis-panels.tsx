@@ -91,7 +91,7 @@ export const AnalysisPanels = ({
     };
     worker.addEventListener("error", () => {
       if (!disposed) {
-        notify("error", "音声解析Workerを起動できません。");
+        notify("error", "音声解析処理の起動に失敗しました。");
       }
     });
     const off = instance.on("decode", () => {

@@ -53,7 +53,7 @@ export { errorText } from "../../platform/files";
 export const OTO_NAME = "oto.ini";
 export const BACKUP_SUFFIX = ".bak";
 
-/** Undo／Redoの対象。選択行も一緒に戻し、変更した行を見失わないようにする。 */
+/** 元に戻す／やり直すの対象。選択行も一緒に戻し、変更した行を見失わないようにする。 */
 export interface Snapshot {
   otoSet: OtoSet;
   selectedId: string | null;
@@ -465,11 +465,11 @@ const chooseRestrictedIni = async (
   const choice = await ask({
     title: "iniファイルを選んでください",
     message: folder.createIni
-      ? "ブラウザがフォルダ内のiniファイルの読み書きを制限しているため、ファイルを個別に選んでください。oto.iniがある場合は「iniファイルを選ぶ」、まだない場合は「新しく作る」を選びます。「新しく作る」で既存のファイルを選ぶと、その中身は消えます。"
-      : "ブラウザがフォルダ内のiniファイルの読み書きを制限しているため、音源フォルダの直下にあるoto.iniなどの原音設定を個別に選んでください。",
+      ? "ブラウザのセキュリティ制限により、フォルダ内のiniファイルへのアクセスが制限されています。ファイルを個別に選択してください。既存のoto.iniがある場合は「iniファイルを選択」、新規作成する場合は「新規作成」を選択してください（※「新規作成」で既存のファイルを選択すると内容が上書きされます）。"
+      : "ブラウザのセキュリティ制限により、フォルダ内のiniファイルへのアクセスが制限されています。音源フォルダ直下のoto.iniなどの原音設定ファイルを個別に選択してください。",
     actions: [
-      { id: "select", label: "iniファイルを選ぶ" },
-      ...(folder.createIni ? [{ id: "create", label: "新しく作る" }] : []),
+      { id: "select", label: "iniファイルを選択" },
+      ...(folder.createIni ? [{ id: "create", label: "新規作成" }] : []),
       { id: "cancel", label: "キャンセル" },
     ],
   });
@@ -494,11 +494,11 @@ const openNotice = (
   created: boolean
 ): Notice | null => {
   if (created) {
-    return { text: `空の${otoName}を作成しました。`, tone: "info" };
+    return { text: `空の ${otoName} を作成しました。`, tone: "info" };
   }
   if (baseline === null) {
     return {
-      text: "oto.iniがないため、新しく作成します。保存するまでファイルは作られません。",
+      text: "oto.ini が存在しないため、新規作成用として開きました（保存するまでファイルは書き出されません）。",
       tone: "info",
     };
   }
@@ -517,7 +517,7 @@ export const openVoiceFolder = async (
   platform: FilePlatform,
   requestedName?: string
 ): Promise<Session> =>
-  await withBusy("フォルダを読み込んでいます", async () => {
+  await withBusy("音源フォルダを読み込み中", async () => {
     const files = await folder.listFiles();
     const wavs = wavIndex(files);
     let otoName =
@@ -582,13 +582,16 @@ export const openVoiceFolder = async (
     if (otoSet.encodingCertainty === "invalid") {
       notify(
         "warning",
-        "oto.iniの文字コードを判定できませんでした。表示が崩れている場合は文字コードを切り替えてください。"
+        "文字コードを自動判定できませんでした。文字化けしている場合は右下の文字コードを切り替えてください。"
       );
     }
     try {
       await rememberFolder(folder);
     } catch {
-      notify("warning", "フォルダ履歴を保存できません。編集は継続できます。");
+      notify(
+        "warning",
+        "フォルダ履歴を保存できませんでした（編集作業はそのまま継続できます）。"
+      );
     }
     return session;
   });
@@ -640,11 +643,11 @@ export const save = async (): Promise<boolean> => {
     ].join(" ");
     notify(
       "error",
-      `${serialized.issues.length}行に保存できない文字があります（${characters}）。文字を直すか、文字コードを変えてください。`
+      `${serialized.issues.length}行に保存できない文字（文字コード非対応）が含まれています（${characters}）。文字を修正するか、文字コードを変更してください。`
     );
     return false;
   }
-  return await withBusy("保存しています", async () => {
+  return await withBusy("保存中", async () => {
     try {
       const { otoName } = session;
       const folder = session.storageFolder ?? session.folder;
@@ -663,9 +666,9 @@ export const save = async (): Promise<boolean> => {
           ],
           message:
             current === null
-              ? `${otoName}が他のアプリで削除されています。編集中の内容で作成しますか。`
-              : `${otoName}が開いた後に他のアプリで変更されています。上書きすると他のアプリの変更は失われます（変更前の内容は${otoName}${BACKUP_SUFFIX}に残します）。`,
-          title: "元ファイルが変更されています",
+              ? `${otoName} が外部で削除されています。編集中の内容で再作成しますか？`
+              : `${otoName} が外部で変更されています。上書き保存すると外部での変更内容は失われます（現在の内容は ${otoName}${BACKUP_SUFFIX} としてバックアップされます）。`,
+          title: "外部でファイルが変更されています",
         });
         if (choice !== "overwrite") {
           return false;
@@ -679,7 +682,7 @@ export const save = async (): Promise<boolean> => {
         !bytesEqual(currentComments, session.commentBaseline ?? null) &&
         (await ask({
           title: "コメントファイルが変更されています",
-          message: `${commentName}を編集内容で上書きしますか。`,
+          message: `${commentName} を編集内容で上書きしますか？`,
           actions: [
             { id: "overwrite", label: "上書きする", tone: "danger" },
             { id: "cancel", label: "キャンセル" },
@@ -713,7 +716,7 @@ export const save = async (): Promise<boolean> => {
             }
           : opened
       );
-      notify("info", `${otoName}を保存しました。`);
+      notify("info", `${otoName} を保存しました。`);
       if (!selectIsDirty(get())) {
         await clearRecovery(session);
       }
@@ -721,7 +724,7 @@ export const save = async (): Promise<boolean> => {
     } catch (error) {
       notify(
         "error",
-        `保存できませんでした。編集内容は残っています。${errorText(error)}`
+        `保存できませんでした（編集内容は保持されています）: ${errorText(error)}`
       );
       return false;
     }
@@ -741,7 +744,7 @@ export const confirmDiscardChanges = async (
       { id: "discard", label: "保存しない", tone: "danger" },
       { id: "cancel", label: "キャンセル" },
     ],
-    message: `${action}前に、未保存の変更を保存しますか。`,
+    message: `${action}の前に、未保存の変更を保存しますか？`,
     title: "未保存の変更があります",
   });
   if (choice === "save") {
@@ -761,7 +764,7 @@ export const openBookmark = async (entry: FolderBookmark): Promise<void> => {
   const folder = await reopenBookmark(entry);
   if (folder === null) {
     throw new Error(
-      "このフォルダにアクセスできません。音源フォルダを開くボタンから選び直してください。"
+      "フォルダにアクセスできませんでした。「音源フォルダを開く」から選択し直してください。"
     );
   }
   await openVoiceFolder(folder, await getFilePlatform());
@@ -815,7 +818,7 @@ export const openIni = async (name: string): Promise<boolean> => {
     );
     return true;
   } catch (error) {
-    notify("error", `読み込めません: ${errorText(error)}`);
+    notify("error", `読み込めませんでした: ${errorText(error)}`);
     return false;
   }
 };
@@ -851,7 +854,10 @@ export const saveAs = async (
         nativePath: destination.bookmark ?? null,
       };
     } catch (error) {
-      notify("warning", `保存先履歴を記録できません: ${errorText(error)}`);
+      notify(
+        "warning",
+        `保存先履歴を保存できませんでした: ${errorText(error)}`
+      );
     }
   }
   const newSession = {
@@ -908,7 +914,7 @@ export const refreshRecoveries = async (): Promise<void> => {
     const records = await platform.recovery.list();
     set({ recoveries: records.toSorted((a, b) => b.savedAt - a.savedAt) });
   } catch (error) {
-    notify("error", `復元データを読めません: ${errorText(error)}`);
+    notify("error", `復元データを読み込めませんでした: ${errorText(error)}`);
   }
 };
 
@@ -939,11 +945,11 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
     if (!folder) {
       const choice = await ask({
         actions: [
-          { id: "pick", label: "フォルダを選ぶ", tone: "primary" },
+          { id: "pick", label: "フォルダを選択", tone: "primary" },
           { id: "cancel", label: "キャンセル" },
         ],
-        message: `「${record.folderName}」へのアクセスを確認できませんでした。同じフォルダを選び直してください。`,
-        title: "フォルダの再許可が必要です",
+        message: `「${record.folderName}」へのアクセス権限を確認できませんでした。同じフォルダを選択し直してください。`,
+        title: "フォルダの再アクセス許可が必要です",
       });
       if (choice !== "pick") {
         return false;
@@ -958,7 +964,7 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
             { id: "continue", label: "このフォルダに復元する", tone: "danger" },
             { id: "cancel", label: "キャンセル" },
           ],
-          message: `選んだフォルダ「${folder.name}」は記録したフォルダ「${record.folderName}」と一致しません。`,
+          message: `選択されたフォルダ「${folder.name}」は、自動保存時のフォルダ「${record.folderName}」と一致しません。続行しますか？`,
           title: "別のフォルダです",
         });
         if (confirm !== "continue") {
@@ -973,7 +979,7 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
         if (
           (await ask({
             title: "保存先フォルダを再選択",
-            message: `保存先「${data.storageBookmark.name}」へのアクセスを取り戻せません。保存先フォルダを選択してください。`,
+            message: `保存先「${data.storageBookmark.name}」へのアクセス権限を取得できませんでした。保存先フォルダを選択し直してください。`,
             actions: [
               { id: "pick", label: "保存先を選択", tone: "primary" },
               { id: "cancel", label: "キャンセル" },
@@ -1006,8 +1012,8 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
           { id: "restore", label: "復元する", tone: "primary" },
           { id: "cancel", label: "復元しない" },
         ],
-        message: `${session.otoName}は復元データの記録後に変更されています。復元すると、保存時にその変更を上書きします。`,
-        title: "元ファイルが変更されています",
+        message: `${session.otoName} は自動保存データの記録後に外部で変更されています。復元した場合、次回保存時にその変更が上書きされます。`,
+        title: "外部でファイルが変更されています",
       });
       if (choice !== "restore") {
         return false;
@@ -1025,7 +1031,7 @@ const restoreFromRecord = async (id: string): Promise<boolean> => {
     await writeRecovery();
     notify(
       "info",
-      "未保存の編集内容を復元しました。保存するまで元ファイルは変わりません。"
+      "自動保存データから未保存の編集内容を復元しました。保存するまで元のファイルは変更されません。"
     );
     return true;
   } catch (error) {

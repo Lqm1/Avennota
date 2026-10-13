@@ -64,9 +64,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
   return (
     <EditorDialog
       title={
-        mode === "open"
-          ? "原音パラメータの読み込み"
-          : "名前を付けて保存（Ctrl/Cmd+Shift+S）"
+        mode === "open" ? "原音設定ファイルの読み込み" : "名前を付けて保存"
       }
       onClose={closeEditorPanel}
     >
@@ -76,7 +74,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
             ? (destination?.name ??
               (workspace.session.storageFolder ?? workspace.session.folder)
                 .name)
-            : "音源フォルダを選んでください。"}
+            : "音源フォルダを選択してください。"}
         </p>
         <Button
           onPress={() => {
@@ -87,7 +85,7 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
             }
           }}
         >
-          {mode === "save" ? "保存先フォルダを選ぶ" : "音源フォルダを選ぶ"}
+          {mode === "save" ? "保存先フォルダを選択…" : "音源フォルダを選択…"}
         </Button>
         {folder?.pickIni ? (
           <Button
@@ -95,18 +93,22 @@ export const FileDialog = ({ mode }: { mode: "open" | "save" }) => {
               void chooseIni();
             }}
           >
-            iniファイルを個別に選ぶ
+            iniファイルを選択…
           </Button>
         ) : null}
         {mode === "open" ? (
           <SelectField
-            label="iniファイル"
+            label="原音設定ファイル（ini）"
             value={name}
             options={names.map((id) => ({ id, label: id }))}
             onChange={setName}
           />
         ) : (
-          <CommitTextField label="ファイル名" value={name} onCommit={setName} />
+          <CommitTextField
+            label="保存ファイル名"
+            value={name}
+            onCommit={setName}
+          />
         )}
         <div className="flex justify-end gap-2">
           <Button onPress={closeEditorPanel}>キャンセル</Button>

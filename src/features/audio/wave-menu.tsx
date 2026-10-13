@@ -41,7 +41,7 @@ export const WaveMenu = ({
     };
   }, [onClose]);
   const itemClass =
-    "cursor-default px-3 py-1.5 text-xs text-slate-200 outline-none data-focused:bg-white/10";
+    "flex cursor-default items-center justify-between px-3 py-1.5 text-xs text-slate-200 outline-none data-focused:bg-white/10";
   return (
     <div
       ref={ref}
@@ -49,7 +49,7 @@ export const WaveMenu = ({
       style={{ left: position.x, top: position.y }}
     >
       <Menu
-        aria-label="波形操作"
+        aria-label="波形操作メニュー"
         autoFocus
         onAction={(key) => {
           const current = settingsStore.state;
@@ -99,41 +99,56 @@ export const WaveMenu = ({
         }}
       >
         <MenuItem id="in" className={itemClass}>
-          拡大（F12）
+          <span>拡大</span>
+          <kbd className="text-[10px] text-slate-400">F12</kbd>
         </MenuItem>
         <MenuItem id="out" className={itemClass}>
-          縮小（F11）
+          <span>縮小</span>
+          <kbd className="text-[10px] text-slate-400">F11</kbd>
         </MenuItem>
         <MenuItem id="fit" className={itemClass}>
-          全体表示
+          <span>波形全体を表示</span>
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="timing" className={itemClass}>
-          {settings.clickMode === "timing" ? "✓ " : ""}発声タイミング補正モード
+          <span>発声タイミング補正モード</span>
+          <span className="text-accent">
+            {settings.clickMode === "timing" ? "✓" : ""}
+          </span>
         </MenuItem>
         <MenuItem
           id="range"
           className={itemClass}
           isDisabled={settings.clickMode === "timing"}
         >
-          {settings.clickMode === "range" ? "✓ " : ""}
-          近傍パラメータ間をクリック再生
+          <span>パラメータ区間をクリック再生</span>
+          <span className="text-accent">
+            {settings.clickMode === "range" ? "✓" : ""}
+          </span>
         </MenuItem>
         <MenuItem id="offset" className={itemClass}>
-          {settings.offsetMode === "relative" ? "✓ " : ""}左ブランクに連動
+          <span>左ブランク移動時に他マーカーも連動</span>
+          <span className="text-accent">
+            {settings.offsetMode === "relative" ? "✓" : ""}
+          </span>
         </MenuItem>
         <MenuItem id="preutter" className={itemClass}>
-          {settings.preutterMode === "relative" ? "✓ " : ""}先行発声に連動
+          <span>先行発声移動時に他マーカーも連動</span>
+          <span className="text-accent">
+            {settings.preutterMode === "relative" ? "✓" : ""}
+          </span>
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="wave" className={itemClass}>
-          {settings.showWave ? "✓ " : ""}波形を表示
+          <span>波形を表示</span>
+          <span className="text-accent">{settings.showWave ? "✓" : ""}</span>
         </MenuItem>
         <MenuItem id="spec" className={itemClass}>
-          {settings.showSpec ? "✓ " : ""}スペクトログラムを表示
+          <span>スペクトログラムを表示</span>
+          <span className="text-accent">{settings.showSpec ? "✓" : ""}</span>
         </MenuItem>
         <MenuItem id="settings" className={itemClass}>
-          設定…
+          <span>設定…</span>
         </MenuItem>
       </Menu>
     </div>

@@ -172,7 +172,7 @@ export const PreviewTable = ({
 }) => (
   <div className="border-line max-h-72 overflow-auto rounded border">
     <table className="w-full text-xs tabular-nums">
-      <caption className="sr-only">処理される原音設定行</caption>
+      <caption className="sr-only">原音設定の一括変更プレビュー</caption>
       <thead className="bg-panel sticky top-0 text-[11px] text-slate-400">
         <tr className="border-line border-b">
           <th className="px-2 py-1.5 text-left font-normal">処理</th>
@@ -260,7 +260,7 @@ export const BatchPreview = ({
                 closeEditorPanel();
                 notify(
                   "info",
-                  `${changes}行の変更を反映しました。Undoで戻せます。`
+                  `${changes}件の変更を適用しました。Ctrl+Zで元に戻せます。`
                 );
               } else {
                 await onApply(result);

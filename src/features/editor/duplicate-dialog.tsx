@@ -56,7 +56,7 @@ const showInTable = (group: DuplicateGroup, lineId: string) => {
   closeEditorPanel();
   notify(
     "info",
-    `「${group.key}」の${group.lineIds.length}行を表示しています。`
+    `「${group.key}」の ${group.lineIds.length}行に絞り込みました。`
   );
 };
 
@@ -118,11 +118,11 @@ export const DuplicateDialog = () => {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[11px] text-slate-400">
-          UTAUで呼ばれる名前（空欄はWAV名）が同じ行を、WAVが違っても1組にまとめます。残す行を選ぶと、ほかの行を削除します。値やコメントは合成しません。
+          エイリアス（空欄時はWAV名）が重複している設定行をグループ化します。保持する行を選択し、不要な重複行を一括削除できます（設定値やコメントの統合は行いません）。
         </p>
         <div className="grid grid-cols-2 items-start gap-2">
           <CommitTextField
-            label="比較の前に名前から除く部分（正規表現、例: \d+$ で末尾の番号）"
+            label="比較時に除外するパターン（正規表現、例: \d+$ で末尾連番を除外）"
             value={ignore}
             errorText={patternError}
             onCommit={(value) => {
@@ -131,11 +131,11 @@ export const DuplicateDialog = () => {
             }}
           />
           <SelectField
-            label="既定で残す行"
+            label="優先して保持する行"
             value={strategy}
             options={[
-              { id: "first", label: "iniで先にある行" },
-              { id: "last", label: "iniで後にある行" },
+              { id: "first", label: "前方の行を優先" },
+              { id: "last", label: "後方の行を優先" },
             ]}
             onChange={(value) => {
               setStrategy(value);
@@ -154,7 +154,7 @@ export const DuplicateDialog = () => {
               <caption className="sr-only">重複しているエイリアスの組</caption>
               <thead className="bg-panel sticky top-0 text-[11px] text-slate-400">
                 <tr className="border-line border-b">
-                  <th className="px-2 py-1.5 text-left font-normal">残す</th>
+                  <th className="px-2 py-1.5 text-left font-normal">保持</th>
                   <th className="px-2 py-1.5 text-left font-normal">WAV</th>
                   <th className="px-2 py-1.5 text-left font-normal">
                     エイリアス
@@ -198,7 +198,7 @@ export const DuplicateDialog = () => {
                       <tr key={id} className="border-b border-white/5">
                         <td className="px-2 py-1">
                           <Check
-                            label="残す"
+                            label="保持"
                             value={keep.has(id)}
                             onChange={() => {
                               toggle(id);
@@ -230,7 +230,7 @@ export const DuplicateDialog = () => {
                         <td className="px-2 py-1 whitespace-nowrap">
                           <Button
                             tone="ghost"
-                            aria-label="左ブランクから右ブランクまで試聴"
+                            aria-label="発声区間を試聴"
                             onPress={() => {
                               void audition(line, duration);
                             }}
@@ -239,7 +239,7 @@ export const DuplicateDialog = () => {
                           </Button>
                           <Button
                             tone="ghost"
-                            aria-label="この組を一覧に表示して波形で確認"
+                            aria-label="このグループを一覧で表示"
                             onPress={() => {
                               showInTable(group, id);
                             }}
@@ -255,13 +255,14 @@ export const DuplicateDialog = () => {
             </table>
             {groups.length > GROUP_LIMIT ? (
               <p className="px-2 py-1 text-[11px] text-slate-500">
-                ほか{groups.length - GROUP_LIMIT}組（既定で残す行に従います）
+                他 {groups.length - GROUP_LIMIT}
+                組（保持設定に従って処理されます）
               </p>
             ) : null}
           </div>
         ) : null}
         <Check
-          label="WAVの最後の行も削除する"
+          label="WAVの最後の1行も削除を許可"
           value={allowLastRow}
           onChange={setAllowLastRow}
         />

@@ -39,7 +39,9 @@ const OtoFields = ({
   const duration = useDuration(folder, oto.wav);
   const params = useMarkerParams(line.id, oto);
   const cutoffNote =
-    oto.cutoff < 0 ? "負（左ブランクからの長さ）" : "正（末尾からの距離）";
+    oto.cutoff < 0
+      ? "負値（左ブランクからの長さ）"
+      : "正値（WAV末尾からの距離）";
   return (
     <>
       <CommitTextField
@@ -51,7 +53,7 @@ const OtoFields = ({
       />
       {oto.alias === "" ? (
         <p className="-mt-2 text-[11px] text-slate-500">
-          空欄のときはファイル名「{fileStem(oto.wav)}」で呼ばれます。
+          空欄時はファイル名「{fileStem(oto.wav)}」がエイリアスになります。
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-2 @md:grid-cols-3">
@@ -90,7 +92,7 @@ const OtoFields = ({
               }
             }}
           >
-            {oto.cutoff < 0 ? "正の表現に変える" : "負の表現に変える"}
+            {oto.cutoff < 0 ? "正の値に変換" : "負の値に変換"}
           </Button>
         </div>
       </div>
@@ -124,7 +126,7 @@ export const Inspector = ({
       <OtoFields row={row} folder={folder} />
     ) : (
       <CommitTextField
-        label="解釈できない行（そのまま保存します）"
+        label="未解釈行（そのまま保存されます）"
         errorText={row.line.parsed.reason}
         value={row.line.text}
         onCommit={(text) => {
@@ -141,7 +143,7 @@ export const Inspector = ({
     </ul>
     <div className="flex flex-wrap gap-2">
       <Button
-        aria-label="行を複製（Ctrl/Cmd+I）"
+        aria-label="行を複製（Ctrl+I）"
         onPress={() => {
           duplicateLine(row.id);
         }}
@@ -149,11 +151,11 @@ export const Inspector = ({
         <CopyPlus className="size-3.5" />
         行を複製
         <kbd className="hidden font-mono text-[10px] opacity-60 @sm:inline">
-          Ctrl/Cmd+I
+          Ctrl+I
         </kbd>
       </Button>
       <Button
-        aria-label="行を削除（Ctrl/Cmd+D）"
+        aria-label="行を削除（Ctrl+D）"
         tone="danger"
         onPress={() => {
           deleteLineKeepingWav(row.id);
@@ -162,7 +164,7 @@ export const Inspector = ({
         <Trash className="size-3.5" />
         行を削除
         <kbd className="hidden font-mono text-[10px] opacity-70 @sm:inline">
-          Ctrl/Cmd+D
+          Ctrl+D
         </kbd>
       </Button>
     </div>
@@ -183,10 +185,10 @@ export const AddLine = ({ wavNames }: { wavNames: string[] }) => {
         className="min-w-0 flex-1"
         hideLabel
         isDisabled={options.length === 0}
-        label="WAVを選んで行を追加"
+        label="WAVを選択して行を追加"
         onChange={setSelected}
         options={options}
-        placeholder="WAVを選んで行を追加"
+        placeholder="WAVを選択して行を追加"
         value={selected}
       />
       <Button

@@ -74,14 +74,14 @@ const buildRow = (
   const wavKey = oto.wav.toLowerCase();
   if (isSubfolderPath(oto.wav)) {
     statuses.push({
-      text: "子フォルダのWAV（このフォルダを個別に開いて編集）",
+      text: "サブフォルダ内のWAV（対象フォルダを直接開いて編集してください）",
       tone: "info",
     });
   } else if (!wavs.has(wavKey)) {
     statuses.push({ text: "WAVがありません", tone: "warning" });
   }
   if ((aliasCounts.get(effectiveAlias(oto)) ?? 0) > 1) {
-    statuses.push({ text: "エイリアスが重複", tone: "info" });
+    statuses.push({ text: "エイリアス重複", tone: "info" });
   }
   const duration = durations.get(wavKey);
   const warnings =

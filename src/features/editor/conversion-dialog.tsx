@@ -56,8 +56,8 @@ export const ConversionDialog = () => {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[11px] text-slate-400">
-          「a か」「- か」などの連続音の行から、CV（か）とVC（a
-          k）の行を作って末尾へ追加します。元の行は変えません。音階・強弱などの後ろの装飾は引き継ぎます。
+          「a か」「- か」等の連続音行から、単独音CV（「か」）やVC（「a
+          k」）の行を生成して末尾に追加します。元の設定行は変更されず、音階等の接尾辞は引き継がれます。
         </p>
         <div className="grid grid-cols-2 gap-2">
           {scope.field}
@@ -79,11 +79,11 @@ export const ConversionDialog = () => {
                   });
                 }}
               >
-                読み込む
+                読み込む…
               </Button>
               {table === null ? (
                 <span className="text-xs text-slate-500">
-                  未指定（下の共通値を使う）
+                  未指定（下記の設定値を使用）
                 </span>
               ) : (
                 <>
@@ -106,7 +106,7 @@ export const ConversionDialog = () => {
         <fieldset className="border-line flex flex-col gap-2 rounded border p-3">
           <legend className="px-1 text-xs text-slate-300">CV</legend>
           <Check
-            label="CVを追加する（a か・- か → か）"
+            label="CVを追加（a か・- か → か）"
             value={options.cv}
             onChange={(cv) => {
               update({ cv });
@@ -118,8 +118,8 @@ export const ConversionDialog = () => {
               value={options.cvSource}
               isDisabled={!options.cv}
               options={[
-                { id: "initial", label: "語頭の行（- か）だけ" },
-                { id: "all", label: "連続音の行すべて（語頭を優先）" },
+                { id: "initial", label: "語頭の行（- か）のみ" },
+                { id: "all", label: "すべての連続音行（語頭を優先）" },
               ]}
               onChange={(cvSource) => {
                 update({ cvSource });
@@ -128,7 +128,7 @@ export const ConversionDialog = () => {
             {table === null ? (
               <>
                 <MsField
-                  label="CVの先行発声"
+                  label="CVの先行発声（ms）"
                   value={options.cvPreutter}
                   swatch={null}
                   isDisabled={!options.cv}
@@ -137,7 +137,7 @@ export const ConversionDialog = () => {
                   }}
                 />
                 <MsField
-                  label="CVのオーバーラップ"
+                  label="CVのオーバーラップ（ms）"
                   value={options.cvOverlap}
                   swatch={null}
                   isDisabled={!options.cv}
@@ -148,7 +148,7 @@ export const ConversionDialog = () => {
               </>
             ) : (
               <Check
-                label="固定範囲に表の値を使う"
+                label="固定範囲に音節表の値を使用"
                 value={options.useTableConsonant}
                 disabled={!options.cv}
                 onChange={(useTableConsonant) => {
@@ -158,16 +158,16 @@ export const ConversionDialog = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-400">
-            元の先行発声の位置と右ブランクの終端を保ちます。
+            元の先行発声および右ブランクの絶対位置を維持します。
             {table === null
-              ? "音節表がないときは、すべての音節に同じ値を使います。"
-              : "表にない音節は作りません。"}
+              ? "音節表が未指定の場合は、全音節で共通値を使用します。"
+              : "音節表に存在しない音節は生成されません。"}
           </p>
         </fieldset>
         <fieldset className="border-line flex flex-col gap-2 rounded border p-3">
           <legend className="px-1 text-xs text-slate-300">VC</legend>
           <Check
-            label="VCを追加する（a か → a k）"
+            label="VCを追加（a か → a k）"
             value={options.vc}
             onChange={(vc) => {
               update({ vc });
@@ -176,7 +176,7 @@ export const ConversionDialog = () => {
           <div className="grid grid-cols-3 items-end gap-2">
             {table === null ? (
               <MsField
-                label="子音の長さ（ms）"
+                label="子音長（ms）"
                 value={options.consonantLength}
                 swatch={null}
                 isDisabled={!options.vc}
@@ -186,7 +186,7 @@ export const ConversionDialog = () => {
               />
             ) : null}
             <Check
-              label="破裂音（k・t・p）は子音の前半で終える"
+              label="破裂音（k・t・pなど）の右ブランクを短縮"
               value={options.shortenPlosive}
               disabled={!options.vc}
               onChange={(shortenPlosive) => {
@@ -195,14 +195,14 @@ export const ConversionDialog = () => {
             />
           </div>
           <p className="text-[11px] text-slate-400">
-            先行発声の位置を子音の長さだけ前へ移し、子音の始まりで終わる行を作ります。
+            先行発声の絶対位置を子音長分前にシフトし、子音部を切り出すVC行を生成します。
             {table === null
-              ? "子音名は仮名の読みから決めます。"
-              : "子音名は表の2列目、子音の長さは表の先行発声を使います。"}
+              ? "子音名は仮名の読みから自動判定されます。"
+              : "子音名および子音長には音節表の値を使用します。"}
           </p>
         </fieldset>
         <Check
-          label="既にあるエイリアスと重なっても作る"
+          label="既存のエイリアスと重複しても生成する"
           value={options.allowDuplicates}
           onChange={(allowDuplicates) => {
             update({ allowDuplicates });

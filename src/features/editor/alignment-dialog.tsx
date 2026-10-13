@@ -64,13 +64,11 @@ const formats = [
 ] satisfies { id: VoicebankFormat; label: string }[];
 const modes = [
   { id: "update", label: "既存行の値を補正" },
-  { id: "generate", label: "設定行を新規再生成" },
+  { id: "generate", label: "設定行を新規生成" },
 ] satisfies { id: ApplyMode; label: string }[];
 const modeHints: Record<ApplyMode, string> = {
-  update:
-    "WAVファイル名とエイリアスが一致する既存行の設定値のみを更新します。コメントや行順は維持されます。",
-  generate:
-    "対象WAVの既存行を削除し、推定結果をもとに原音設定行を新しく生成し直します。",
+  update: "既存行の数値のみを更新します（コメントや行順は維持されます）。",
+  generate: "既存行を置き換え、推定結果から設定行を新規生成します。",
 };
 const PAGE_SIZE = 50;
 const changeEntries = (result: ResultState): BatchEntry[] => {
@@ -140,7 +138,7 @@ const Section = ({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) => (
-  <section className="flex min-w-0 flex-col gap-3">
+  <section className="flex min-w-0 flex-col gap-2">
     <div className="flex min-h-7 items-center justify-between gap-2">
       <h3 className="text-xs font-semibold text-slate-400">{title}</h3>
       {action}
@@ -172,7 +170,7 @@ const FileRow = ({
   pickLabel?: string;
   clearLabel?: string;
 }) => (
-  <li className="flex items-center gap-3 px-3 py-2">
+  <li className="flex items-center gap-3 px-3 py-1.5">
     <div className="min-w-0 flex-1">
       <p className="truncate text-xs text-slate-200">{name}</p>
       <p className="truncate text-[11px] text-slate-400">
@@ -277,8 +275,8 @@ const WavList = ({
       }
     >
       <Hint>
-        ファイル名から発音（仮名）を自動判定しています。実際の発音と異なる場合は直接入力して修正してください（index.csv
-        が指定されている録音は、その音素列が優先されます）。
+        ファイル名から発音（仮名）を自動判定しています。実際の発音と異なる場合は直接修正してください（index.csv
+        指定時はその音素列が優先されます）。
       </Hint>
       <div className="border-line overflow-hidden rounded border">
         <div className="grid grid-cols-2 gap-3 bg-black/20 px-3 py-1.5 text-[11px] text-slate-400">
@@ -445,7 +443,7 @@ const ResultView = ({
       <Footer>
         <Button onPress={onBack}>設定に戻る</Button>
         <span className="ml-auto text-[11px] text-slate-400">
-          反映後も「元に戻す」（Ctrl/Cmd+Z）で一括して取り消せます
+          反映後も「元に戻す」（Ctrl+Z）で一括して取り消せます
         </span>
         <Button onPress={onClose}>破棄して閉じる</Button>
         <Button tone="primary" isDisabled={unchanged} onPress={onApply}>
@@ -694,10 +692,10 @@ export const AlignmentDialog = () => {
           </p>
           <fieldset
             disabled={running}
-            className="grid min-w-0 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]"
+            className="grid min-w-0 gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,27.5rem)_minmax(0,1fr)]"
           >
             <legend className="sr-only">自動推定の設定</legend>
-            <div className="flex min-w-0 flex-col gap-6">
+            <div className="flex min-w-0 flex-col gap-4">
               <Section title="生成するエイリアス">
                 <div className="flex flex-wrap gap-x-5 gap-y-2">
                   {formats.map(({ id, label }) => (
@@ -713,9 +711,7 @@ export const AlignmentDialog = () => {
                     />
                   ))}
                 </div>
-                <Hint>
-                  複数の形式を同時に選択できます。形式間で共通するエイリアスは自動的に統合されます。
-                </Hint>
+                <Hint>形式間で共通するエイリアスは自動的に統合されます。</Hint>
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField
                     label="反映方法"
@@ -730,7 +726,7 @@ export const AlignmentDialog = () => {
                   />
                   {mode === "generate" ? (
                     <MsField
-                      label="重複エイリアスの生成上限（0: 無制限）"
+                      label="重複エイリアスの生成上限数（0で無制限）"
                       value={limit}
                       onCommit={(value) => {
                         setLimit(Math.max(0, Math.trunc(value)));
@@ -757,13 +753,13 @@ export const AlignmentDialog = () => {
                     />
                   ) : null}
                   <CommitTextField
-                    label="ファイル名から除く接尾辞（音階等）"
+                    label="除外する接尾辞（音階など）"
                     value={filenameSuffix}
                     onCommit={setFilenameSuffix}
                   />
                 </div>
                 <Hint>
-                  連続音・CVVCの各パラメータの算出や、同一母音が連続する箇所の境界補正に使用します。
+                  連続音・CVVCのパラメータ算出や母音境界の補正に使用します。
                 </Hint>
               </Section>
               <Section title="音響モデル・参照ファイル">
@@ -793,7 +789,7 @@ export const AlignmentDialog = () => {
                     detail="発音・音素列対応表"
                     status={
                       index.size === 0
-                        ? "未指定（音源フォルダ内を自動使用）"
+                        ? "未指定（フォルダ内を自動検出）"
                         : `${index.size}件の録音を指定中`
                     }
                     isSet={index.size > 0}
@@ -824,12 +820,12 @@ export const AlignmentDialog = () => {
                   />
                 </ul>
                 <Check
-                  label="音源の音声に合わせてモデルを追加学習（適応）する"
+                  label="音源の音声に合わせてモデルを適応学習する"
                   value={adapt}
                   onChange={setAdapt}
                 />
                 <Hint>
-                  追加学習を行う場合は、多様な発音を含む録音を選択してください。録音数が少ない場合や低音の音源では、かえって精度が低下することがあります。
+                  多様な発音を含む録音を選択してください。録音数が少ないと精度が低下する場合があります。
                 </Hint>
               </Section>
             </div>

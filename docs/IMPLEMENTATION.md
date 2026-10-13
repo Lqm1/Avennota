@@ -25,7 +25,7 @@ src-tauri/                Tauri（fs・dialog・persisted-scopeプラグイン�
 | 用途 | パッケージ | 備考 |
 | --- | --- | --- |
 | ルーティング | `@tanstack/react-router`、`@tanstack/router-plugin` | ファイルベースルート |
-| 状態管理 | `@tanstack/react-store` | 適用中の設定、編集状態、Undo／Redo、WAVの長さ |
+| 状態管理 | `@tanstack/react-store` | 適用中の設定、編集状態、元に戻す／やり直す、WAVの長さ |
 | ショートカット | `@tanstack/react-hotkeys` | 入力欄では単独キーを無視する |
 | 間引き | `@tanstack/react-pacer` | 復元データの記録、ドラッグ中の仮の値 |
 | 永続化 | `@tanstack/db` | 公式localStorage／IndexedDBアダプター |
@@ -45,7 +45,7 @@ src-tauri/                Tauri（fs・dialog・persisted-scopeプラグイン�
 - 編集状態は`Workspace`のclosed／openで分ける。Sessionと履歴はopenだけが持つ。
 - 一覧の行は解釈済み／未解釈で分け、元の`OtoLine`を参照する。WAV名・エイリアス・原音設定値を表示用オブジェクトへ複製しない。波形と詳細欄も同じ行を使う。
 - 行の元の文字列・バイト列・改行は`LineSource`にまとめる。新規行だけsourceがnull。欠けていた数値欄は存在する欄だけを保持し、編集で必要になった欄を補う。
-- 値が変わらない編集・選択・Undo／Redoは元の状態を返す。変更時も未編集の行を再利用する。保存中に追加した編集は保存済みにしない。
+- 値が変わらない編集・選択・元に戻す／やり直すは元の状態を返す。変更時も未編集の行を再利用する。保存中に追加した編集は保存済みにしない。
 - 一括処理は対象の行IDと元の`OtoSet`から`BatchResult`（元データ・結果・行ごとの処理）を作る。行ごとの追加・変更・削除・スキップ・エラーは`BatchBuilder`に記録する。検索条件は`RowQuery`、エイリアスの規則は`AliasRules`、音節表は`SyllableTable`が解釈済みの値と処理をまとめて持つ。`OtoSet`・行・結果は変更しないプレーンなオブジェクトのまま扱う。画面は結果を一覧表示してから`transformOtoSet`で1回の履歴として反映する。元データが変わっていれば反映しない。新しい行は元行の文字列から作り、数値の表記・追加欄・コメントを引き継ぐ。
 - 一覧の絞り込み（USTと検索）は`row-filter.ts`の行IDの集合で、行移動・範囲選択・一括処理の「表示中の行」で共有する。
 - 復元データとIndexedDBの値はストレージの境界で検証し、内部では検証済みの`RecoveryRecord`を使う。

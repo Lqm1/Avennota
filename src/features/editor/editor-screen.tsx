@@ -77,13 +77,13 @@ const EmptyList = ({
         onClick={onCreate}
         type="button"
       >
-        フォルダ内の{wavCount}件のWAVから初期行を作成
+        フォルダ内の{wavCount}件のWAVから初期行を生成
       </button>
     ) : (
-      <p className="text-xs">このフォルダにはWAVがありません。</p>
+      <p className="text-xs">このフォルダにはWAVファイルがありません。</p>
     )}
     <p className="text-[11px] text-slate-500">
-      初期行の値は0です。自動推定の結果ではありません。
+      初期設定値はすべて0です（自動推定値ではありません）。
     </p>
   </div>
 );
@@ -97,7 +97,7 @@ const EncodingStatus = ({ workspace }: { workspace: OpenWorkspace }) => {
       {uncertain ? (
         <span
           className="flex items-center gap-1 text-amber-300"
-          title="ASCIIのみ、または判定できない内容です。必要なら切り替えてください。"
+          title="文字コードを自動判定できませんでした。必要に応じて切り替えてください。"
         >
           <TriangleAlert className="size-3.5" />
           <span className="sr-only @3xl:not-sr-only">
@@ -222,7 +222,7 @@ const SelectedWave = ({
   const wav = session.wavs.get(oto.wav.toLowerCase());
   return wav === undefined ? (
     <WavePlaceholder
-      message={`${oto.wav}がこのフォルダにありません。行は削除せずに保持します。`}
+      message={`${oto.wav} が音源フォルダに見つかりません。原音設定行は保持されています。`}
     />
   ) : (
     <WaveView
@@ -309,13 +309,13 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
         message={
           rows.length === 0
             ? "原音設定行がありません。"
-            : "行を選んでください。"
+            : "原音設定行を選択してください。"
         }
       />
     );
   } else if (selectedRow.kind === "unparsed") {
     wave = (
-      <WavePlaceholder message="この行は原音設定行として解釈できません。" />
+      <WavePlaceholder message="この行は原音設定行として解釈できませんでした。" />
     );
   } else {
     wave = <SelectedWave row={selectedRow} session={session} linked={linked} />;
@@ -333,10 +333,7 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
         unlistedCount={unlistedCount}
         onAddUnlisted={() => {
           const added = addLinesForUnlistedWavs();
-          notify(
-            "info",
-            `${added}件の初期行を追加しました（値は0。自動推定ではありません）。`
-          );
+          notify("info", `${added}件の初期行を追加しました（設定値は0です）。`);
         }}
       />
       <Group className="min-h-0 flex-1" orientation="vertical">
@@ -379,7 +376,7 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
                   <ToolButton
                     icon={PanelRightOpen}
                     iconOnly
-                    label="詳細欄を開く"
+                    label="インスペクターを開く"
                     onPress={() => {
                       autoCollapsed.current = false;
                       inspectorRef.current?.expand();
@@ -406,7 +403,7 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
                     <ToolButton
                       icon={PanelRightClose}
                       iconOnly
-                      label="詳細欄を畳む"
+                      label="インスペクターを閉じる"
                       onPress={() => {
                         autoCollapsed.current = false;
                         inspectorRef.current?.collapse();
@@ -416,7 +413,7 @@ const OpenedEditor = ({ workspace }: { workspace: OpenWorkspace }) => {
                   <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
                     {selectedRow === undefined ? (
                       <p className="text-xs text-slate-500">
-                        一覧から原音設定行を選んでください。
+                        一覧から原音設定行を選択してください。
                       </p>
                     ) : (
                       <Inspector row={selectedRow} folder={session.folder} />

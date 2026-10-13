@@ -73,7 +73,7 @@ export const ToolsDialog = () => {
         deleteUnused &&
         (await ask({
           title: "USTの対象外行を削除",
-          message: `${targets.size}行を残し、使われない原音設定行を削除します。Undoで戻せます。`,
+          message: `${targets.size}行を残し、USTで使用されない原音設定行を削除します（元に戻す操作で復元可能です）。`,
           actions: [
             { id: "delete", label: "対象外行を削除", tone: "danger" },
             { id: "cancel", label: "キャンセル" },
@@ -116,14 +116,17 @@ export const ToolsDialog = () => {
     }
   };
   return (
-    <EditorDialog title="ファイル・コメント・UST" onClose={closeEditorPanel}>
+    <EditorDialog
+      title="ファイル・コメント・UST連携"
+      onClose={closeEditorPanel}
+    >
       <div className="flex flex-col gap-5">
         <fieldset
           className="flex flex-col gap-2"
           disabled={workspace.kind === "closed" || busy !== ""}
         >
           <legend className="mb-2 text-sm text-slate-300">
-            ファイル・コメント・UST
+            ファイル・コメント・UST連携
           </legend>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -133,7 +136,7 @@ export const ToolsDialog = () => {
                 });
               }}
             >
-              iniをマージ
+              別iniをマージ…
             </Button>
             <Button
               onPress={() => {
@@ -153,7 +156,7 @@ export const ToolsDialog = () => {
                 });
               }}
             >
-              別の場所へiniを書き出す
+              別名でiniを書き出す…
             </Button>
             <Button
               onPress={() => {
@@ -162,7 +165,7 @@ export const ToolsDialog = () => {
                 });
               }}
             >
-              コメントを読み込む
+              コメントファイルを読み込む…
             </Button>
             <Button
               onPress={() => {
@@ -176,26 +179,26 @@ export const ToolsDialog = () => {
                 });
               }}
             >
-              コメントを書き出す
+              コメントファイルを書き出す…
             </Button>
           </div>
           <Check
-            label="USTで使われる音にコメントを付ける"
+            label="USTで使用される音にコメントを付与"
             value={annotate}
             onChange={setAnnotate}
           />
           <Check
-            label="USTで使われる音だけ表示する"
+            label="USTで使用される音のみ絞り込み表示"
             value={filter}
             onChange={setFilter}
           />
           <Check
-            label="USTで使われない行を削除する"
+            label="USTで使用されない行を削除"
             value={deleteUnused}
             onChange={setDeleteUnused}
           />
           <MsField
-            label="同じ歌詞の対象行上限（0＝無制限）"
+            label="同一歌詞の対象行上限数（0で無制限）"
             value={ustLimit}
             swatch={null}
             onCommit={(value) => {
@@ -203,7 +206,7 @@ export const ToolsDialog = () => {
             }}
           />
           <CommitTextField
-            label="追記するコメント（空欄＝ノート番号）"
+            label="追記コメント（空欄時はノート番号）"
             value={ustComment}
             onCommit={setUstComment}
           />
@@ -215,7 +218,7 @@ export const ToolsDialog = () => {
                 });
               }}
             >
-              USTを読み込む
+              USTファイルを読み込む…
             </Button>
             <Button
               onPress={() => {
@@ -237,7 +240,7 @@ export const ToolsDialog = () => {
                   });
                 }}
               >
-                ファイルマネージャーで開く
+                音源フォルダをエクスプローラーで開く
               </Button>
               <Button
                 onPress={() => {

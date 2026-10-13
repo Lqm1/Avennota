@@ -15,6 +15,7 @@ interface MenuAction {
   label: string;
   disabled?: boolean;
   handleAction: () => void;
+  shortcut?: string;
 }
 export type EditorMenuEntry =
   | (MenuAction & { kind: "action" })
@@ -74,6 +75,11 @@ const MenuEntries = ({
             {entry.kind === "check" && entry.checked ? "✓" : ""}
           </span>
           <span>{entry.label}</span>
+          {entry.shortcut === undefined ? null : (
+            <kbd className="ml-auto font-mono text-[10px] opacity-60">
+              {entry.shortcut}
+            </kbd>
+          )}
         </MenuItem>
       );
       return entry.kind === "check" ? (

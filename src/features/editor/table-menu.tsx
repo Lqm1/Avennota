@@ -40,7 +40,7 @@ export const TableMenu = ({
     };
   }, [onClose]);
   const itemClass =
-    "cursor-default px-3 py-1.5 text-xs text-slate-200 outline-none data-focused:bg-white/10";
+    "flex cursor-default items-center justify-between px-3 py-1.5 text-xs text-slate-200 outline-none data-focused:bg-white/10";
   return createPortal(
     <div
       ref={ref}
@@ -48,7 +48,7 @@ export const TableMenu = ({
       style={{ left: position.x, top: position.y }}
     >
       <Menu
-        aria-label="一覧操作"
+        aria-label="原音設定一覧の操作メニュー"
         autoFocus
         onAction={(key) => {
           const { workspace } = editorStore.state;
@@ -79,30 +79,36 @@ export const TableMenu = ({
         }}
       >
         <MenuItem id="copy" className={itemClass}>
-          コピー（Ctrl/Cmd+C）
+          <span>コピー</span>
+          <kbd className="text-[10px] text-slate-400">Ctrl+C</kbd>
         </MenuItem>
         <MenuItem id="cut" className={itemClass}>
-          切り取り（Ctrl/Cmd+X）
+          <span>切り取り</span>
+          <kbd className="text-[10px] text-slate-400">Ctrl+X</kbd>
         </MenuItem>
         <MenuItem id="paste" className={itemClass}>
-          貼り付け（Ctrl/Cmd+V）
+          <span>貼り付け</span>
+          <kbd className="text-[10px] text-slate-400">Ctrl+V</kbd>
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="bulk" className={itemClass}>
-          値一括変更（Ctrl/Cmd+M）
+          <span>値の一括変更…</span>
+          <kbd className="text-[10px] text-slate-400">Ctrl+M</kbd>
         </MenuItem>
         <MenuItem id="alias" className={itemClass}>
-          エイリアス一括変更
+          <span>エイリアスの一括変更…</span>
         </MenuItem>
         <Separator className="border-line my-1 border-t" />
         <MenuItem id="play" className={itemClass}>
-          全体再生・停止（Ctrl/Cmd+P）
+          <span>全体再生・停止</span>
+          <kbd className="text-[10px] text-slate-400">Ctrl+P</kbd>
         </MenuItem>
         <MenuItem id="timing" className={itemClass}>
-          発声タイミング試聴（F8）
+          <span>発声タイミング試聴</span>
+          <kbd className="text-[10px] text-slate-400">F8</kbd>
         </MenuItem>
         <MenuItem id="settings" className={itemClass}>
-          設定…
+          <span>設定…</span>
         </MenuItem>
       </Menu>
     </div>,

@@ -105,12 +105,12 @@ export const parseLine = (text: string): ParsedLine => {
   if (separator === -1) {
     return {
       kind: "unparsed",
-      reason: "「=」がないため原音設定行として読めません",
+      reason: "「=」がないため原音設定行として解釈できません",
     };
   }
   const wav = text.slice(0, separator);
   if (wav.trim() === "") {
-    return { kind: "unparsed", reason: "原音ファイル名がありません" };
+    return { kind: "unparsed", reason: "WAVファイル名が指定されていません" };
   }
   const fields = text.slice(separator + 1).split(",");
   const issues: string[] = [];

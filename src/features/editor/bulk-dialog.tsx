@@ -22,10 +22,7 @@ export const BulkDialog = () => {
     threshold: 0,
   });
   return (
-    <EditorDialog
-      title="選択セルの値を一括変更（Ctrl/Cmd+M）"
-      onClose={closeEditorPanel}
-    >
+    <EditorDialog title="選択セルの値を一括変更" onClose={closeEditorPanel}>
       <div className="flex flex-col gap-3">
         <SelectField
           label="変更方法"
@@ -33,8 +30,8 @@ export const BulkDialog = () => {
           options={[
             { id: "add", label: "加算" },
             { id: "subtract", label: "減算" },
-            { id: "set", label: "同じ値を設定" },
-            { id: "integer", label: "整数化（小数部を切り捨て）" },
+            { id: "set", label: "指定値に設定" },
+            { id: "integer", label: "整数化（小数点以下切り捨て）" },
           ]}
           onChange={(mode) => {
             setChange({ ...change, mode });
@@ -102,7 +99,7 @@ export const AliasDialog = () => {
   });
   const scope = useScope(usePresent());
   return (
-    <EditorDialog title="エイリアス一括変更" onClose={closeEditorPanel}>
+    <EditorDialog title="エイリアスの一括変更" onClose={closeEditorPanel}>
       <div className="flex flex-col gap-3">
         {scope.field}
         <CommitTextField
@@ -113,7 +110,8 @@ export const AliasDialog = () => {
           }}
         />
         <p className="text-xs text-slate-400">
-          %a＝現在のエイリアス、%f＝拡張子なしのファイル名、%m＝音名、%s＝接尾辞、%r＝重複番号（最初は空、2件目から2、3…）
+          %a: 現在のエイリアス / %f: ファイル名（拡張子なし） / %m: 音階 / %s:
+          接尾辞 / %r: 重複連番（2件目以降 2, 3…）
         </p>
         <div className="grid grid-cols-3 gap-2">
           {(["deletePrefix", "deleteSuffix", "maxDuplicates"] as const).map(
@@ -124,7 +122,7 @@ export const AliasDialog = () => {
                   {
                     deletePrefix: "先頭削除文字数",
                     deleteSuffix: "末尾削除文字数",
-                    maxDuplicates: "重複上限（0＝無制限）",
+                    maxDuplicates: "重複上限数（0で無制限）",
                   }[key]
                 }
                 value={change[key]}
@@ -139,7 +137,8 @@ export const AliasDialog = () => {
           )}
         </div>
         <p className="text-xs text-amber-300">
-          %rを使い重複上限を指定すると、上限を超えた行を削除します。Undoで戻せます。
+          %r
+          を使用して重複上限数を指定した場合、上限を超えた行は削除されます（元に戻す操作で復元可能です）。
         </p>
         <div className="mt-2 flex justify-end gap-2">
           <Button onPress={closeEditorPanel}>キャンセル</Button>

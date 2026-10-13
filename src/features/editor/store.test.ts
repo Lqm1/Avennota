@@ -257,7 +257,7 @@ describe("編集状態と保存", () => {
     expect(firstLine()).toBe(line);
   });
 
-  it("行の変更とUndo／Redoで未変更行の参照を維持する", async () => {
+  it("行の変更と元に戻す／やり直すで未変更行の参照を維持する", async () => {
     const { folder, platform } = fixture();
     await openVoiceFolder(folder, platform);
     const before = opened().history.present.otoSet;
@@ -382,7 +382,7 @@ describe("編集状態と保存", () => {
     expect(selectIsDirty(editorStore.state)).toBeTruthy();
   });
 
-  it("範囲の貼り付けは一回のUndoで全行を戻す", async () => {
+  it("範囲の貼り付けは一回の「元に戻す」で全行を戻す", async () => {
     const { folder, platform } = fixture();
     await openVoiceFolder(folder, platform);
     const source = opened().history.present.otoSet;

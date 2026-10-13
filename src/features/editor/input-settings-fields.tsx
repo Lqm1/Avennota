@@ -11,33 +11,33 @@ export const InputSettingsFields = ({
 }) => (
   <div className="flex flex-col gap-3">
     <SelectField
-      label="左ブランクを動かしたとき"
+      label="左ブランクドラッグ時の動作"
       value={draft.offsetMode}
       options={[
-        { id: "positions", label: "左ブランクのみを動かす" },
-        { id: "relative", label: "他パラメータも動かして相対位置を保つ" },
+        { id: "positions", label: "左ブランクのみ移動" },
+        { id: "relative", label: "他のマーカーも連動して移動" },
       ]}
       onChange={(offsetMode) => {
         onChange({ offsetMode });
       }}
     />
     <SelectField
-      label="先行発声を動かしたとき"
+      label="先行発声ドラッグ時の動作"
       value={draft.preutterMode}
       options={[
-        { id: "independent", label: "先行発声のみを動かす" },
-        { id: "relative", label: "他パラメータも動かして相対位置を保つ" },
+        { id: "independent", label: "先行発声のみ移動" },
+        { id: "relative", label: "他のマーカーも連動して移動" },
       ]}
       onChange={(preutterMode) => {
         onChange({ preutterMode });
       }}
     />
     <SelectField
-      label="波形・スペクトログラムのクリック操作"
+      label="波形・スペクトログラムのクリック動作"
       value={draft.clickMode}
       options={[
-        { id: "none", label: "再生しない" },
-        { id: "range", label: "近傍パラメータ間を再生する" },
+        { id: "none", label: "何もしない" },
+        { id: "range", label: "境界線間をクリックして再生" },
         { id: "timing", label: "発声タイミング補正" },
       ]}
       onChange={(clickMode) => {
@@ -45,46 +45,46 @@ export const InputSettingsFields = ({
       }}
     />
     <SelectField
-      label="右ブランク値の表現方法"
+      label="右ブランクの数値表現"
       value={draft.cutoffMode}
       options={[
-        { id: "positive", label: "ファイル末尾からの時間（正の値）" },
-        { id: "negative", label: "左ブランクからの時間（負の値）" },
+        { id: "positive", label: "WAV末尾からの距離（正の値）" },
+        { id: "negative", label: "左ブランクからの長さ（負の値）" },
       ]}
       onChange={(cutoffMode) => {
         onChange({ cutoffMode });
       }}
     />
     <Check
-      label="オーバーラップを負にしても良い"
+      label="オーバーラップの負の値を許可"
       value={draft.negativeOverlap}
       onChange={(negativeOverlap) => {
         onChange({ negativeOverlap });
       }}
     />
     <Check
-      label="左右ブランクの移動可能範囲を他パラメータより優先する"
+      label="左右ブランクの移動時に内側マーカーを押し出す（ほうきモード）"
       value={draft.blankBroom}
       onChange={(blankBroom) => {
         onChange({ blankBroom });
       }}
     />
     <Check
-      label="F9で左右ブランクの両側波形をカットする"
+      label="F9キーでの波形トリミングを有効化（左右ブランクの外側を削除）"
       value={draft.advanced.allowTrim}
       onChange={(allowTrim) => {
         onChange({ advanced: { ...draft.advanced, allowTrim } });
       }}
     />
     <Check
-      label="再生位置に追随して画面をスクロールさせる"
+      label="再生位置に合わせて自動スクロール"
       value={draft.followPlayMark}
       onChange={(followPlayMark) => {
         onChange({ followPlayMark });
       }}
     />
     <Check
-      label="再生後に元の描画位置に戻る"
+      label="再生終了後に元のスクロール位置へ戻る"
       value={draft.returnToPlayStart}
       onChange={(returnToPlayStart) => {
         onChange({ returnToPlayStart });

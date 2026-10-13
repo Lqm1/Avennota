@@ -23,7 +23,7 @@ export const pushState = <T>(history: History<T>, next: T): History<T> => {
   };
 };
 
-/** 履歴に残さず現在の状態だけを置き換える。選択の変更など、Undoの対象にしない変化に使う。 */
+/** 履歴に残さず現在の状態だけを置き換える。選択の変更など、「元に戻す」の対象にしない変化に使う。 */
 export const replacePresent = <T>(history: History<T>, next: T): History<T> =>
   next === history.present ? history : { ...history, present: next };
 

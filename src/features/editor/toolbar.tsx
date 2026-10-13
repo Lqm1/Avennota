@@ -37,7 +37,7 @@ export const Toolbar = ({
   const canRedo = workspace.history.future.length > 0;
   return (
     <AriaToolbar
-      aria-label="編集操作"
+      aria-label="メインツールバー"
       className="border-line bg-panel @container flex shrink-0 flex-nowrap items-center gap-1 border-b px-2 py-1.5"
     >
       <FileMenu />
@@ -51,7 +51,7 @@ export const Toolbar = ({
         label="元に戻す"
         priority="high"
         onPress={undo}
-        shortcut="Ctrl/Cmd+Z"
+        shortcut="Ctrl+Z"
       />
       <ToolButton
         icon={Redo2}
@@ -59,7 +59,7 @@ export const Toolbar = ({
         label="やり直す"
         priority="high"
         onPress={redo}
-        shortcut="Ctrl/Cmd+Y"
+        shortcut="Ctrl+Y"
       />
       {unlistedCount > 0 ? (
         <>
@@ -68,7 +68,7 @@ export const Toolbar = ({
             badge={String(unlistedCount)}
             className="text-amber-300"
             icon={ListPlus}
-            label={`未登録のWAVから行を作成（${unlistedCount}件）`}
+            label={`未登録WAVを追加（${unlistedCount}件）`}
             onPress={onAddUnlisted}
           />
         </>

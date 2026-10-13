@@ -35,9 +35,7 @@ export const StartScreen = () => {
       <div className="m-auto flex w-full max-w-xl flex-col gap-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Avennota</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            UTAU音源のフォルダを開き、oto.iniの原音設定を編集します。
-          </p>
+          <p className="mt-1 text-sm text-slate-400">UTAU原音設定エディター</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               onPress={() => {
@@ -63,7 +61,7 @@ export const StartScreen = () => {
             }}
             tone="primary"
           >
-            音源フォルダを開く（Ctrl/Cmd+O）
+            音源フォルダを開く
           </Button>
         ) : (
           <p className="rounded border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-200">
@@ -73,7 +71,7 @@ export const StartScreen = () => {
         {records.length > 0 ? (
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-slate-200">
-              未保存の編集が残っています
+              未保存の編集データがあります
             </h2>
             <ul className="flex flex-col gap-2">
               {records.map((record) => (
@@ -86,7 +84,7 @@ export const StartScreen = () => {
                       {record.folderName}
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      {formatTime(record.savedAt)}に記録
+                      {formatTime(record.savedAt)} に自動保存
                     </div>
                   </div>
                   <Button
@@ -109,7 +107,7 @@ export const StartScreen = () => {
               ))}
             </ul>
             <p className="text-[11px] text-slate-500">
-              復元するまで元のoto.iniは変わりません。ブラウザのサイトデータを削除した場合、この記録は失われます。
+              復元して上書き保存するまで元のoto.iniは変更されません。ブラウザのサイトデータを削除すると、自動保存データは失われます。
             </p>
           </section>
         ) : null}

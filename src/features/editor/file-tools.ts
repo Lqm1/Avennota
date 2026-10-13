@@ -111,7 +111,7 @@ export const processWavs = async (
   if (
     (await ask({
       title: "WAVを加工して保存",
-      message: `${names.length}ファイルを加工し、原音設定と一緒に保存します。元の内容は.bakに保存します。現在の未保存編集も保存し、Undo履歴を初期化します。`,
+      message: `${names.length}件のファイルを加工し、原音設定と一緒に上書き保存します。元のファイルは.bakに退避されます。未保存の編集も保存され、編集履歴（元に戻す操作）はリセットされます。`,
       actions: [
         { id: "run", label: "加工して保存", tone: "danger" },
         { id: "cancel", label: "キャンセル" },
@@ -172,7 +172,7 @@ export const renameWavs = async (related: boolean): Promise<void> => {
     (await ask({
       title: "ファイル名に_を付加",
       message:
-        "WAV名と原音設定を変更して保存します。元の内容は.bakに残し、Undo履歴を初期化します。",
+        "WAVファイル名と原音設定を変更して上書き保存します。元のファイルは.bakに退避され、編集履歴（元に戻す操作）はリセットされます。",
       actions: [
         { id: "run", label: "変更して保存", tone: "danger" },
         { id: "cancel", label: "キャンセル" },

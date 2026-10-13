@@ -27,9 +27,9 @@ export const WavCutDialog = () => {
       adjust &&
       unsafe &&
       (await ask({
-        title: "ブランクより長いカット",
+        title: "カット範囲の確認",
         message:
-          "左右ブランク値より長くカットされる行があります。パラメータ位置がずれる可能性があります。続行しますか？",
+          "左右ブランクよりも長くカットされる原音設定行があります。設定値の位置関係が崩れる可能性がありますが、続行しますか？",
         actions: [
           { id: "continue", label: "続行" },
           { id: "cancel", label: "キャンセル" },
@@ -48,10 +48,10 @@ export const WavCutDialog = () => {
     });
   };
   return (
-    <EditorDialog title="wavの両端をカット" onClose={closeEditorPanel}>
+    <EditorDialog title="WAVの両端を一括カット" onClose={closeEditorPanel}>
       <div className="flex flex-col gap-3">
         <MsField
-          label="冒頭からのカット長（秒）"
+          label="先頭からのカット長（秒）"
           value={head}
           swatch={null}
           onCommit={setHead}
@@ -63,12 +63,12 @@ export const WavCutDialog = () => {
           onCommit={setTail}
         />
         <Check
-          label="カット後に左右ブランク値を補正してパラメータ位置がずれないようにする"
+          label="カット後に左右ブランクを自動補正（原音設定の絶対位置を維持）"
           value={adjust}
           onChange={setAdjust}
         />
         <p className="text-xs text-slate-400">
-          ブランク値より長くカットした場合、位置がずれることがあります。
+          左右ブランク長を超えてカットした場合、設定位置がずれることがあります。
         </p>
         <div className="flex justify-end gap-2">
           <Button onPress={closeEditorPanel}>キャンセル</Button>

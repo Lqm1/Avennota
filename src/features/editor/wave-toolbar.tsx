@@ -23,22 +23,22 @@ export const WaveToolbar = () => {
   const settings = useSettings();
   return (
     <AriaToolbar
-      aria-label="波形の操作"
+      aria-label="波形操作ツールバー"
       className="border-line bg-panel/60 @container flex h-8 shrink-0 flex-nowrap items-center gap-1 border-b px-2"
     >
       <ToolButton
         icon={Play}
-        label="全体を再生"
+        label="全体再生"
         priority="high"
         onPress={() => waveControls()?.playAll()}
         shortcut="Space"
       />
       <ToolButton
         icon={SquarePlay}
-        label="範囲を再生"
+        label="発声区間再生"
         priority="high"
         onPress={() => waveControls()?.playRange()}
-        shortcut="Ctrl/Cmd+Space"
+        shortcut="Ctrl+Space"
       />
       <ToolButton
         icon={Square}
@@ -49,7 +49,7 @@ export const WaveToolbar = () => {
       />
       <ToolButton
         icon={Metronome}
-        label="発声タイミング"
+        label="発声タイミング試聴"
         onPress={() => {
           void playTiming();
         }}
@@ -72,12 +72,12 @@ export const WaveToolbar = () => {
       />
       <ToolButton
         icon={FoldHorizontal}
-        label="全体表示"
+        label="波形全体を表示"
         onPress={() => waveControls()?.fit()}
       />
       {divider}
       {MARKERS.map((marker) => {
-        const text = `${MARKER_LABELS[marker]}をポインター位置へ（${MARKER_KEYS[marker]}）`;
+        const text = `${MARKER_LABELS[marker]}をカーソル位置へ配置（${MARKER_KEYS[marker]}）`;
         return (
           <Tip key={marker} text={text}>
             <Button
@@ -95,7 +95,7 @@ export const WaveToolbar = () => {
       <ToolToggle
         icon={Link2}
         isSelected={settings.preutterMode === "relative"}
-        label="先行発声に連動"
+        label="先行発声連動"
         onChange={(on) => {
           updateSettings({ preutterMode: on ? "relative" : "independent" });
         }}

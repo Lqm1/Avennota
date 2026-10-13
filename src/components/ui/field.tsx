@@ -40,7 +40,7 @@ export const CommitTextField = ({
   errorText = "",
 }: CommitTextFieldProps) => {
   const [draft, setDraft] = useState(value);
-  // 外から値が変わったら（Undoや行の切り替え）、編集中の文字列を置き換える。
+  // 外から値が変わったら（元に戻す操作や行の切り替え）、編集中の文字列を置き換える。
   const [source, setSource] = useState(value);
   if (source !== value) {
     setSource(value);
@@ -240,7 +240,7 @@ export const SearchBox = ({
     <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-slate-500" />
     <Input
       className={cn(inputClass, "pl-7")}
-      placeholder="検索（Ctrl/Cmd+F）"
+      placeholder="検索（Ctrl+F）"
       ref={inputRef}
     />
   </AriaSearchField>

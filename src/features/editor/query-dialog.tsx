@@ -24,10 +24,10 @@ import { writeSubset } from "./subset-export";
 type QueryAction = "filter" | "replace" | "delete" | "export";
 
 const FIELD_OPTIONS: { id: QueryField; label: string }[] = [
-  { id: "alias", label: "エイリアス（空欄はWAV名）" },
+  { id: "alias", label: "エイリアス（空欄時はWAV名）" },
   { id: "wav", label: "WAVファイル名" },
   { id: "comment", label: "コメント" },
-  { id: "text", label: "行の原文（解釈できない行を含む）" },
+  { id: "text", label: "行の原文（未解釈行を含む）" },
 ];
 const MODE_OPTIONS: { id: QueryMode; label: string }[] = [
   { id: "contains", label: "部分一致" },
@@ -35,10 +35,10 @@ const MODE_OPTIONS: { id: QueryMode; label: string }[] = [
   { id: "regex", label: "正規表現（JavaScript）" },
 ];
 const ACTION_OPTIONS: { id: QueryAction; label: string }[] = [
-  { id: "filter", label: "一致した行だけ表示する" },
-  { id: "replace", label: "一致した部分を置換する" },
-  { id: "delete", label: "一致した行を削除する" },
-  { id: "export", label: "一致した行を別のiniへ書き出す" },
+  { id: "filter", label: "一致した行のみ絞り込み表示" },
+  { id: "replace", label: "一致箇所を置換" },
+  { id: "delete", label: "一致した行を削除" },
+  { id: "export", label: "一致した行を別ファイルへ抽出（書き出し）" },
 ];
 
 export const QueryDialog = () => {
@@ -107,7 +107,7 @@ export const QueryDialog = () => {
     }
     closeEditorPanel();
     if (deletion === null) {
-      notify("info", `${written}へ${matched.size}行を書き出しました。`);
+      notify("info", `${written} へ ${matched.size}行を書き出しました。`);
       return;
     }
     try {
@@ -115,13 +115,13 @@ export const QueryDialog = () => {
     } catch {
       notify(
         "warning",
-        `${written}へ書き出しました。書き出し中に編集内容が変わったため、行は削除していません。`
+        `${written} へ書き出しました。書き出し中に編集内容が変更されたため、行の削除は行われませんでした。`
       );
       return;
     }
     notify(
       "info",
-      `${written}へ${matched.size}行を書き出し、削除しました。Undoで削除を戻せます（書き出したファイルは残ります）。`
+      `${written} へ ${matched.size}行を書き出して削除しました。「元に戻す」で削除を取り消せます（書き出しファイルは保持されます）。`
     );
   };
 
@@ -135,7 +135,7 @@ export const QueryDialog = () => {
         <div className="grid grid-cols-3 gap-2">
           {scope.field}
           <SelectField
-            label="検索する欄"
+            label="検索対象"
             value={query.field}
             options={FIELD_OPTIONS}
             onChange={(field) => {
@@ -143,7 +143,7 @@ export const QueryDialog = () => {
             }}
           />
           <SelectField
-            label="一致方法"
+            label="一致条件"
             value={query.mode}
             options={MODE_OPTIONS}
             onChange={(mode) => {
@@ -152,7 +152,7 @@ export const QueryDialog = () => {
           />
         </div>
         <CommitTextField
-          label="検索する文字列（Enterで確定）"
+          label="検索文字列（Enterで確定）"
           value={query.text}
           errorText={error}
           onCommit={(text) => {
@@ -168,7 +168,7 @@ export const QueryDialog = () => {
             }}
           />
           <Check
-            label="直後に小書きかなが続く箇所を除く（「き」で「きゃ」を探さない）"
+            label="直後に拗音（小書き文字）が続く箇所を除外（例:「き」で「きゃ」を除外）"
             value={query.excludeYoon}
             disabled={query.mode !== "contains"}
             onChange={(excludeYoon) => {
@@ -177,7 +177,7 @@ export const QueryDialog = () => {
           />
         </div>
         <p className="text-xs text-slate-300">
-          {query.text === "" ? "検索する文字列を入力してください。" : null}
+          {query.text === "" ? "検索文字列を入力してください。" : null}
           {query.text !== "" && error === ""
             ? `${matches.length}行が一致`
             : null}
@@ -208,7 +208,7 @@ export const QueryDialog = () => {
                 notify("info", `${matches.length}行に絞り込みました。`);
               }}
             >
-              表示を絞る
+              絞り込み実行
             </Button>
           </div>
         ) : null}
@@ -225,7 +225,7 @@ export const QueryDialog = () => {
             />
             {query.mode === "regex" ? (
               <Check
-                label="1行の中のすべての一致を置換する"
+                label="行内のすべての一致箇所を置換"
                 value={replaceAll}
                 onChange={setReplaceAll}
               />
@@ -236,7 +236,7 @@ export const QueryDialog = () => {
         {action === "delete" ? (
           <>
             <Check
-              label="WAVの最後の行も削除する"
+              label="WAVの最後の1行も削除を許可"
               value={allowLastRow}
               onChange={setAllowLastRow}
             />
@@ -246,19 +246,19 @@ export const QueryDialog = () => {
         {action === "export" ? (
           <>
             <CommitTextField
-              label="書き出すiniの名前（音源フォルダに保存）"
+              label="書き出しファイル名（音源フォルダ内に保存）"
               value={exportName}
               onCommit={setExportName}
             />
             <Check
-              label="書き出した後、編集中の内容から削除する"
+              label="書き出し後、元の原音設定から削除する"
               value={deleteExported}
               onChange={setDeleteExported}
             />
             {deleteExported ? (
               <>
                 <Check
-                  label="WAVの最後の行も削除する"
+                  label="WAVの最後の1行も削除を許可"
                   value={allowLastRow}
                   onChange={setAllowLastRow}
                 />

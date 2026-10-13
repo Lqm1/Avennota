@@ -34,10 +34,10 @@ const close = () => {
 export const SETTINGS_SECTIONS = {
   inputSettings: "マウス・キー操作",
   settings: "詳細設定",
-  timingSettings: "発声タイミングチェックの設定",
-  playRangeSettings: "指定範囲再生の設定",
-  focusSettings: "パラメータへの自動フォーカス設定",
-  nextSettings: "原音設定したら次のエントリに自動で移動する設定",
+  timingSettings: "発声タイミング試聴の設定",
+  playRangeSettings: "ショートカット範囲再生の設定",
+  focusSettings: "パラメータへの自動フォーカス",
+  nextSettings: "パラメータ設定後の自動移動",
 };
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;
 export const SettingsForm = ({
@@ -96,7 +96,7 @@ export const SettingsForm = ({
           {mode === "focusSettings" ? (
             <>
               <SelectField
-                label="パラメータへの自動フォーカス設定"
+                label="対象パラメータ"
                 value={draft.autoFocus}
                 options={[
                   { id: "none", label: "フォーカスしない" },
@@ -116,7 +116,7 @@ export const SettingsForm = ({
                 }}
               />
               <Check
-                label="フォーカス位置の周囲のみを表示する(長尺のwav処理が高速になる)"
+                label="フォーカス位置の前後のみを読み込む（長尺WAVの描画を高速化）"
                 value={draft.advanced.partialRead}
                 disabled={draft.autoFocus === "none"}
                 onChange={(partialRead) => {
@@ -178,14 +178,14 @@ export const SettingsForm = ({
       {mode === "playRangeSettings" ? (
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-xs font-semibold text-slate-400">
-            指定範囲再生の設定
+            ショートカット範囲再生の設定
           </legend>
           {draft.playRanges.map((range, index) => (
             <div
               className="grid grid-cols-[5rem_1fr_1fr] items-end gap-2"
               key={PLAY_POINTS[index]}
             >
-              <span className="pb-2 text-xs">{`Ctrl/Cmd+F${index + 1}`}</span>
+              <span className="pb-2 text-xs">{`Ctrl+F${index + 1}`}</span>
               <SelectField
                 label="再生開始位置"
                 value={range.start}
@@ -217,7 +217,7 @@ export const SettingsForm = ({
       {mode === "timingSettings" ? (
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-xs font-semibold text-slate-400">
-            発声タイミングチェックの設定
+            発声タイミング試聴の設定
           </legend>
           <div className="grid grid-cols-3 gap-2">
             <MsField
@@ -231,7 +231,7 @@ export const SettingsForm = ({
               }}
             />
             <MsField
-              label="最初に何回クリックを鳴らすか（0〜20回）"
+              label="カウント拍数（0〜20拍）"
               value={draft.timing.preCount}
               swatch={null}
               onCommit={(preCount) => {
@@ -245,7 +245,7 @@ export const SettingsForm = ({
               }}
             />
             <MsField
-              label="音声とクリックの音量バランス（0〜1）"
+              label="音量バランス（音声:クリック、0〜1）"
               value={draft.timing.mix}
               swatch={null}
               onCommit={(mix) => {
@@ -256,7 +256,7 @@ export const SettingsForm = ({
             />
           </div>
           <p className="text-xs text-slate-400">
-            BPM = {(60_000 / draft.timing.tempo).toFixed(3)} msec/拍
+            1拍の長さ: {(60_000 / draft.timing.tempo).toFixed(1)} ms
           </p>
           <label className="text-xs text-slate-400">
             クリック音（WAV）
@@ -280,11 +280,11 @@ export const SettingsForm = ({
             波形・スペクトログラム
           </legend>
           <p className="text-xs text-slate-400">
-            表示中のパネルに、設定値の比率で高さを配分します。
+            表示パネルの高さを指定した比率で配分します。
           </p>
           <div className="grid grid-cols-2 gap-2">
             <MsField
-              label="波形の高さ配分"
+              label="波形の高さ比率"
               value={draft.waveHeight}
               swatch={null}
               onCommit={(waveHeight) => {
@@ -294,7 +294,7 @@ export const SettingsForm = ({
               }}
             />
             <MsField
-              label="スペクトログラムの高さ配分"
+              label="スペクトログラムの高さ比率"
               value={draft.specHeight}
               swatch={null}
               onCommit={(specHeight) => {
@@ -304,7 +304,7 @@ export const SettingsForm = ({
               }}
             />
             <MsField
-              label="縦軸最大値（0〜32768、0は自動縮尺）"
+              label="波形の縦軸最大値（0で自動調整）"
               value={draft.waveScale}
               swatch={null}
               onCommit={(waveScale) => {
@@ -314,7 +314,7 @@ export const SettingsForm = ({
               }}
             />
             <MsField
-              label="最高周波数（Hz）"
+              label="スペクトログラムの最高周波数（Hz）"
               value={draft.frequencyMax}
               swatch={null}
               onCommit={(frequencyMax) => {
@@ -350,12 +350,12 @@ export const SettingsForm = ({
             }}
           />
           <SelectField
-            label="スペクトルの色"
+            label="スペクトログラムの配色"
             value={draft.spectrumColor}
             options={[
-              { id: "gray", label: "grey" },
-              { id: "color1", label: "color1" },
-              { id: "color2", label: "color2" },
+              { id: "gray", label: "モノクロ（グレースケール）" },
+              { id: "color1", label: "カラー1" },
+              { id: "color2", label: "カラー2" },
             ]}
             onChange={(spectrumColor) => {
               change({ spectrumColor });
@@ -366,7 +366,7 @@ export const SettingsForm = ({
       {mode === "timingSettings" && clickFile !== null ? (
         <p className="text-xs text-slate-400">
           {clickFile === "default"
-            ? "内蔵クリック音を適用します。"
+            ? "内蔵クリック音を使用します。"
             : `クリック音: ${clickFile.name}`}
         </p>
       ) : null}
@@ -376,7 +376,7 @@ export const SettingsForm = ({
             setClickFile("default");
           }}
         >
-          内蔵クリック音に戻す
+          内蔵クリック音にリセット
         </Button>
       ) : null}
       {mode === "settings" ? (

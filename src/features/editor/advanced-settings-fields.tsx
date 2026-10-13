@@ -37,11 +37,11 @@ const colorKeys = [
   "target",
 ] as const;
 const windowLabels = {
-  hamming: "Hamming",
-  hann: "Hanning",
-  bartlett: "Bartlett",
-  blackman: "Blackman",
-  rectangular: "Rectangle",
+  hamming: "ハミング",
+  hann: "ハン",
+  bartlett: "バートレット",
+  blackman: "ブラックマン",
+  rectangular: "矩形",
 };
 const secondsFields = new Set<keyof AdvancedSettings>([
   "powerStep",
@@ -55,15 +55,15 @@ const numericFields: { key: keyof AdvancedSettings; label: string }[] = [
   { key: "contrast", label: "コントラスト（−100〜100）" },
   { key: "windowLength", label: "スペクトログラム窓長（サンプル）" },
   { key: "preEmphasis", label: "プリエンファシス（0〜1）" },
-  { key: "powerHeight", label: "パワーの高さ配分" },
+  { key: "powerHeight", label: "パワーの高さ比率" },
   { key: "powerStep", label: "パワー抽出間隔（秒）" },
   { key: "powerWindow", label: "パワー窓長（秒）" },
   { key: "powerPreEmphasis", label: "パワーのプリエンファシス（0〜1）" },
-  { key: "pitchHeight", label: "F0の高さ配分" },
+  { key: "pitchHeight", label: "ピッチ（F0）の高さ比率" },
   { key: "pitchStep", label: "F0抽出間隔（秒）" },
   { key: "pitchWindow", label: "F0窓長（秒）" },
-  { key: "pitchMin", label: "最低F0（Hz）" },
-  { key: "pitchMax", label: "最高F0（Hz）" },
+  { key: "pitchMin", label: "解析下限ピッチ（Hz）" },
+  { key: "pitchMax", label: "解析上限ピッチ（Hz）" },
   { key: "fontSize", label: "文字サイズ（px）" },
 ];
 export const AdvancedSettingsFields = ({
@@ -89,28 +89,28 @@ export const AdvancedSettingsFields = ({
           詳細表示・解析
         </legend>
         <Check
-          label="描画範囲を固定する"
+          label="ピッチ表示範囲を固定"
           value={advanced.pitchFixedRange}
           onChange={(pitchFixedRange) => {
             change({ pitchFixedRange });
           }}
         />
         <Check
-          label="各音の線を描画する"
+          label="音高グリッド線を表示"
           value={advanced.toneGrid}
           onChange={(toneGrid) => {
             change({ toneGrid });
           }}
         />
         <Check
-          label="発声したい音の線を描画する"
+          label="目標音高のガイド線を表示"
           value={advanced.showTargetPitch}
           onChange={(showTargetPitch) => {
             change({ showTargetPitch });
           }}
         />
         <SelectField
-          label="抽出アルゴリズム"
+          label="ピッチ抽出アルゴリズム"
           value={advanced.pitchMethod}
           options={[
             { id: "mpm", label: "MPM" },
@@ -121,7 +121,7 @@ export const AdvancedSettingsFields = ({
           }}
         />
         <SelectField
-          label="表示単位"
+          label="ピッチ表示単位"
           value={advanced.pitchUnit}
           options={[
             { id: "hz", label: "Hz" },
@@ -132,7 +132,7 @@ export const AdvancedSettingsFields = ({
           }}
         />
         <SelectField
-          label="スペクトルの窓の種類"
+          label="スペクトログラム窓関数"
           value={advanced.window}
           options={WINDOWS.map((id) => ({ id, label: windowLabels[id] }))}
           onChange={(window) => {
@@ -140,7 +140,7 @@ export const AdvancedSettingsFields = ({
           }}
         />
         <SelectField
-          label="パワーの窓の種類"
+          label="パワー窓関数"
           value={advanced.powerWindowKind}
           options={WINDOWS.map((id) => ({ id, label: windowLabels[id] }))}
           onChange={(powerWindowKind) => {
@@ -148,21 +148,21 @@ export const AdvancedSettingsFields = ({
           }}
         />
         <PitchField
-          label="表示範囲の最小値"
+          label="ピッチ表示下限"
           value={advanced.pitchDisplayMin}
           onChange={(pitchDisplayMin) => {
             change({ pitchDisplayMin });
           }}
         />
         <PitchField
-          label="表示範囲の最大値"
+          label="ピッチ表示上限"
           value={advanced.pitchDisplayMax}
           onChange={(pitchDisplayMax) => {
             change({ pitchDisplayMax });
           }}
         />
         <PitchField
-          label="ターゲット音"
+          label="目標音高"
           value={advanced.targetPitch}
           onChange={(targetPitch) => {
             change({ targetPitch });
@@ -173,7 +173,7 @@ export const AdvancedSettingsFields = ({
             change(pitchTargetPreset(advanced));
           }}
         >
-          ターゲットに合わせて他のパラメータを変更：実行
+          目標音高に合わせて表示範囲を自動調整
         </Button>
         <div className="grid grid-cols-2 gap-2">
           {numericFields.map(({ key, label }) => {

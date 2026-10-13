@@ -17,17 +17,20 @@ type OperationKind = ParameterOperation["kind"];
 
 const OPERATION_OPTIONS: { id: OperationKind; label: string }[] = [
   { id: "overlapThird", label: "オーバーラップを先行発声の1/3にする" },
-  { id: "preutter", label: "先行発声を指定の値にする（位置は保つ）" },
-  { id: "ratio", label: "先行発声とオーバーラップの位置を保ち、3:1にする" },
-  { id: "bpm", label: "収録BPMに合わせる（先行発声の位置は保つ）" },
+  { id: "preutter", label: "先行発声を指定値に変更（絶対位置を維持）" },
+  {
+    id: "ratio",
+    label: "先行発声とオーバーラップを3:1に調整（絶対位置を維持）",
+  },
+  { id: "bpm", label: "収録BPMに合わせて算出（絶対位置を維持）" },
 ];
 const HINTS: Record<OperationKind, string> = {
-  overlapThird: "ほかの値は変えません。",
+  overlapThird: "他のパラメータは変更しません。",
   preutter:
-    "先行発声の位置・固定範囲の終わり・右ブランクの終端を保ったまま、左ブランクを動かします。オーバーラップは新しい先行発声の1/3にします。",
+    "先行発声・固定範囲・右ブランクの絶対位置を維持したまま左ブランクを移動します。オーバーラップは先行発声の1/3に設定されます。",
   ratio:
-    "先行発声とオーバーラップの位置を変えずに左ブランクを前へ動かし、先行発声:オーバーラップを3:1にします。固定範囲と右ブランクの終端は保ちます。",
-  bpm: "先行発声＝8分音符、オーバーラップ＝その1/3、固定範囲＝付点8分音符、右ブランク＝4分音符＋オーバーラップ（負の値）にします。",
+    "先行発声とオーバーラップの絶対位置を維持したまま左ブランクを移動し、先行発声:オーバーラップの比率を3:1に調整します。固定範囲と右ブランクの絶対位置も維持されます。",
+  bpm: "先行発声＝8分音符長、オーバーラップ＝先行発声の1/3、固定範囲＝付点8分音符長、右ブランク＝4分音符長＋オーバーラップ（負値表現）に設定します。",
 };
 
 const toOperation = (
@@ -64,7 +67,7 @@ export const ParameterDialog = () => {
         );
   return (
     <EditorDialog
-      title="先行発声・オーバーラップの調整"
+      title="先行発声・オーバーラップの一括調整"
       onClose={closeEditorPanel}
       className="max-w-4xl"
     >
@@ -72,7 +75,7 @@ export const ParameterDialog = () => {
         <div className="grid grid-cols-2 gap-2">
           {scope.field}
           <SelectField
-            label="調整"
+            label="調整内容"
             value={kind}
             options={OPERATION_OPTIONS}
             onChange={setKind}
@@ -97,7 +100,7 @@ export const ParameterDialog = () => {
             />
           ) : null}
           <SelectField
-            label="新しい値の小数桁"
+            label="端数の丸め（小数点以下の桁数）"
             value={String(digits)}
             options={[
               { id: "0", label: "整数" },
@@ -111,7 +114,7 @@ export const ParameterDialog = () => {
           />
         </div>
         <Check
-          label="連続音（「a か」のように先行母音と空白で始まる行）だけ"
+          label="連続音の行のみを対象にする（「a か」形式）"
           value={continuousOnly}
           onChange={setContinuousOnly}
         />

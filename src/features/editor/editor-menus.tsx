@@ -33,20 +33,23 @@ const action = (
   id: string,
   label: string,
   run: () => void,
-  disabled = false
+  disabled = false,
+  shortcut?: string
 ): EditorMenuEntry => ({
   kind: "action",
   id,
   label,
   handleAction: run,
   disabled,
+  shortcut,
 });
 const check = (
   id: string,
   label: string,
   checked: boolean,
   run: () => void,
-  disabled = false
+  disabled = false,
+  shortcut?: string
 ): EditorMenuEntry => ({
   kind: "check",
   id,
@@ -54,6 +57,7 @@ const check = (
   checked,
   handleAction: run,
   disabled,
+  shortcut,
 });
 const submenu = (
   id: string,
@@ -82,33 +86,41 @@ export const FileMenu = () => {
       entries={[
         action(
           "open-folder",
-          "音源フォルダを開く（Ctrl/Cmd+O）",
+          "音源フォルダを開く",
           () => {
             void openFolder();
           },
-          busy
+          busy,
+          "Ctrl+O"
         ),
         action(
           "recent-folders",
-          "最近使ったフォルダを開く",
+          "最近使ったフォルダを開く…",
           panel("recentFolders"),
           busy
         ),
         { kind: "separator", id: "folder-separator" },
-        action("open-ini", "原音パラメータの読み込み", panel("fileOpen"), busy),
         action(
-          "save",
-          "上書き保存（Ctrl/Cmd+S）",
-          () => {
-            void save();
-          },
+          "open-ini",
+          "原音設定ファイルを読み込む…",
+          panel("fileOpen"),
           busy
         ),
         action(
+          "save",
+          "上書き保存",
+          () => {
+            void save();
+          },
+          busy,
+          "Ctrl+S"
+        ),
+        action(
           "save-as",
-          "名前を付けて保存（Ctrl/Cmd+Shift+S）",
+          "名前を付けて保存…",
           panel("fileSave"),
-          busy
+          busy,
+          "Ctrl+Shift+S"
         ),
         { kind: "separator", id: "settings-separator" },
         submenu("settings-file", "設定ファイル", [
@@ -123,13 +135,13 @@ export const FileMenu = () => {
               [
                 action(
                   `${section}-read`,
-                  "読み込む",
+                  "読み込む…",
                   fileSettings("read", section),
                   busy
                 ),
                 action(
                   `${section}-write`,
-                  "書き出す",
+                  "書き出す…",
                   fileSettings("write", section),
                   busy
                 ),
@@ -157,37 +169,47 @@ export const ViewMenu = () => {
     <EditorMenu
       label="表示"
       entries={[
-        submenu("horizontal-scale", "横軸の拡大", [
-          action("zoom-in", "拡大（F12）", () => waveControls()?.zoom(1.5)),
-          action("zoom-out", "縮小（F11）", () =>
-            waveControls()?.zoom(1 / 1.5)
+        submenu("horizontal-scale", "横軸の拡大・縮小", [
+          action(
+            "zoom-in",
+            "拡大",
+            () => waveControls()?.zoom(1.5),
+            false,
+            "F12"
           ),
-          action("fit", "全体表示", () => waveControls()?.fit()),
+          action(
+            "zoom-out",
+            "縮小",
+            () => waveControls()?.zoom(1 / 1.5),
+            false,
+            "F11"
+          ),
+          action("fit", "波形全体を表示", () => waveControls()?.fit()),
         ]),
         submenu("time-axis", "時間軸", [
-          check("seconds", "秒", settings.timeUnit === "seconds", () => {
+          check("seconds", "秒単位", settings.timeUnit === "seconds", () => {
             apply({ timeUnit: "seconds" });
           }),
-          check("bars", "小節", settings.timeUnit === "bars", () => {
+          check("bars", "小節単位", settings.timeUnit === "bars", () => {
             apply({ timeUnit: "bars" });
           }),
-          action("bpm", "BPMと開始位置", panel("bpm")),
+          action("bpm", "BPMと開始位置…", panel("bpm")),
         ]),
         { kind: "separator", id: "panels-separator" },
-        check("wave", "波形を表示", settings.showWave, () => {
+        check("wave", "波形", settings.showWave, () => {
           apply({ showWave: !settings.showWave });
         }),
-        check("spectrum", "スペクトログラムを表示", settings.showSpec, () => {
+        check("spectrum", "スペクトログラム", settings.showSpec, () => {
           apply({ showSpec: !settings.showSpec });
         }),
-        check("power", "パワーを表示", advanced.showPower, () => {
+        check("power", "音量パワー", advanced.showPower, () => {
           apply({ advanced: { ...advanced, showPower: !advanced.showPower } });
         }),
-        check("pitch", "F0を表示", advanced.showPitch, () => {
+        check("pitch", "ピッチ（F0）", advanced.showPitch, () => {
           apply({ advanced: { ...advanced, showPitch: !advanced.showPitch } });
         }),
         { kind: "separator", id: "window-separator" },
-        check("whole", "常にWAV全体を表示する", settings.showWhole, () => {
+        check("whole", "常に波形全体を表示", settings.showWhole, () => {
           apply({ showWhole: !settings.showWhole });
         }),
         ...(isTauri()
@@ -207,7 +229,7 @@ export const ViewMenu = () => {
               ),
               action(
                 "opacity",
-                "画面を透過する（Windowsのみ）",
+                "ウィンドウの透過（Windowsのみ）…",
                 panel("opacity")
               ),
             ]
@@ -223,46 +245,54 @@ export const OptionsMenu = () => {
     <EditorMenu
       label="オプション"
       entries={[
-        submenu("input", "マウス、キー操作の設定", [
-          submenu("offset", "マウスで左ブランクを動かしたとき、", [
+        submenu("input", "マウス・キー操作", [
+          submenu("offset", "左ブランクドラッグ時の動作", [
             check(
               "offset-relative",
-              "他パラメータも一緒に動かして相対的な位置関係を保つ。(Shift+l)",
+              "他のマーカーも連動して移動",
               settings.offsetMode === "relative",
               () => {
                 apply({ offsetMode: "relative" });
-              }
+              },
+              false,
+              "Shift+L"
             ),
             check(
               "offset-positions",
-              "他パラメータは動かさず、左ブランクのみを動かす。(Ctrl/Cmd+Shift+l)",
+              "左ブランクのみ単独で移動",
               settings.offsetMode === "positions",
               () => {
                 apply({ offsetMode: "positions" });
-              }
+              },
+              false,
+              "Ctrl+Shift+L"
             ),
           ]),
-          submenu("preutter", "マウスで先行発声を動かしたとき、", [
+          submenu("preutter", "先行発声ドラッグ時の動作", [
             check(
               "preutter-relative",
-              "他パラメータも一緒に動かして相対的な位置関係を保つ。(Shift+p)",
+              "他のマーカーも連動して移動",
               settings.preutterMode === "relative",
               () => {
                 apply({ preutterMode: "relative" });
-              }
+              },
+              false,
+              "Shift+P"
             ),
             check(
               "preutter-independent",
-              "他パラメータは動かさず、先行発声のみを動かす。(Shift+p)",
+              "先行発声のみ単独で移動",
               settings.preutterMode === "independent",
               () => {
                 apply({ preutterMode: "independent" });
-              }
+              },
+              false,
+              "Shift+P"
             ),
           ]),
           check(
             "overlap",
-            "オーバーラップを負にしても良い",
+            "オーバーラップの負の値を許可",
             settings.negativeOverlap,
             () => {
               apply({ negativeOverlap: !settings.negativeOverlap });
@@ -270,7 +300,7 @@ export const OptionsMenu = () => {
           ),
           check(
             "broom",
-            "左右ブランクの移動可能範囲を他パラメータより優先する",
+            "左右ブランクの移動で他マーカーを押し出す（ほうきモード）",
             settings.blankBroom,
             () => {
               apply({ blankBroom: !settings.blankBroom });
@@ -278,7 +308,7 @@ export const OptionsMenu = () => {
           ),
           check(
             "trim",
-            "F9で左右ブランクの両側波形をカットする(単独音向け機能)",
+            "左右ブランクの外側波形をカット（単独音用 / F9）",
             settings.advanced.allowTrim,
             () => {
               apply({
@@ -301,7 +331,7 @@ export const OptionsMenu = () => {
           ),
           check(
             "click-range",
-            "画面クリックで近傍パラメータ間を再生する",
+            "クリックした区間を再生",
             settings.clickMode === "range",
             () => {
               apply({
@@ -311,10 +341,10 @@ export const OptionsMenu = () => {
             settings.clickMode === "timing"
           ),
         ]),
-        submenu("cutoff", "右ブランク値の表現方法", [
+        submenu("cutoff", "右ブランクの数値表現", [
           check(
             "cutoff-positive",
-            "ファイル末尾からの時間(正の値で表現)",
+            "音声末尾からの時間（正の値）",
             settings.cutoffMode === "positive",
             () => {
               apply({ cutoffMode: "positive" });
@@ -322,7 +352,7 @@ export const OptionsMenu = () => {
           ),
           check(
             "cutoff-negative",
-            "左ブランクからの時間(負の値で表現)",
+            "左ブランクからの時間（負の値）",
             settings.cutoffMode === "negative",
             () => {
               apply({ cutoffMode: "negative" });
@@ -332,13 +362,15 @@ export const OptionsMenu = () => {
         { kind: "separator", id: "play-separator" },
         action(
           "timing",
-          "発声タイミングチェックの設定(再生=F8)",
-          panel("timingSettings")
+          "発声タイミング確認の設定…",
+          panel("timingSettings"),
+          false,
+          "F8"
         ),
-        action("ranges", "指定範囲再生の設定", panel("playRangeSettings")),
+        action("ranges", "区間再生の設定…", panel("playRangeSettings")),
         check(
           "follow",
-          "再生位置に追随して画面をスクロールさせる",
+          "再生位置に合わせて自動スクロール",
           settings.followPlayMark,
           () => {
             apply({ followPlayMark: !settings.followPlayMark });
@@ -346,7 +378,7 @@ export const OptionsMenu = () => {
         ),
         check(
           "return",
-          "再生後に元の描画位置に戻る",
+          "再生終了後に元の位置へ戻る",
           settings.returnToPlayStart,
           () => {
             apply({ returnToPlayStart: !settings.returnToPlayStart });
@@ -354,14 +386,10 @@ export const OptionsMenu = () => {
         ),
         action(
           "focus",
-          "パラメータへの自動フォーカス設定",
+          "パラメータの自動フォーカス設定…",
           panel("focusSettings")
         ),
-        action(
-          "next",
-          "原音設定したら次のエントリに自動で移動する設定",
-          panel("nextSettings")
-        ),
+        action("next", "設定完了時の自動移動設定…", panel("nextSettings")),
         { kind: "separator", id: "general-separator" },
         submenu("clipboard", "セルのコピー形式", [
           check(
@@ -387,7 +415,7 @@ export const OptionsMenu = () => {
         ]),
         check(
           "auto-save-settings",
-          "設定変更を自動保存する",
+          "設定の変更を自動保存",
           settings.advanced.autoSaveSettings,
           () => {
             apply({
@@ -398,7 +426,7 @@ export const OptionsMenu = () => {
             });
           }
         ),
-        action("details", "詳細設定", panel("settings")),
+        action("details", "詳細設定…", panel("settings")),
       ]}
     />
   );
@@ -452,11 +480,16 @@ export const ToolsMenu = () => {
     <EditorMenu
       label="ツール"
       entries={[
-        action("alignment", "原音設定の自動推定", panel("alignment"), disabled),
-        submenu("wav", "wavファイルの一括編集", [
+        action(
+          "alignment",
+          "原音設定の自動推定…",
+          panel("alignment"),
+          disabled
+        ),
+        submenu("wav", "WAVファイルの一括編集", [
           action(
             "dc",
-            "DC成分の一括除去",
+            "DCオフセットの一括除去",
             () => {
               processAll("dc");
             },
@@ -464,7 +497,7 @@ export const ToolsMenu = () => {
           ),
           action(
             "rename",
-            "wavファイル名の先頭に「_」を追加(連続音用)",
+            "WAVファイル名の先頭に「_」を付与（連続音用）",
             () => {
               void runTool(async () => {
                 await renameWavs(false);
@@ -474,7 +507,7 @@ export const ToolsMenu = () => {
           ),
           action(
             "rename-related",
-            "wavファイル名(や周波数ファイル)の先頭に「_」を追加(連続音用)",
+            "WAV名と周波数表の先頭に「_」を付与（連続音用）",
             () => {
               void runTool(async () => {
                 await renameWavs(true);
@@ -482,20 +515,20 @@ export const ToolsMenu = () => {
             },
             disabled
           ),
-          action("cut", "wavの両端を一括カット", panel("wavCut"), disabled),
+          action("cut", "WAVの両端を一括カット…", panel("wavCut"), disabled),
           action(
             "mono",
-            "wavファイルの一括モノラル化",
+            "WAVファイルの一括モノラル化",
             () => {
               processAll("mono");
             },
             disabled
           ),
         ]),
-        submenu("finish", "仕上げ、補完用ツール", [
+        submenu("finish", "エイリアスの補完・仕上げ", [
           action(
             "continuous",
-            "連続音oto.iniに無いエイリアスを探し、単独音で補完する",
+            "連続音に不足しているエイリアスを単独音で補完…",
             () => {
               void runTool(complement);
             },
@@ -503,17 +536,17 @@ export const ToolsMenu = () => {
           ),
           action(
             "kana",
-            "「を」が無い場合「お」で補完する",
+            "不足している「を」のエイリアスを「お」で補完",
             () => {
               transformOtoSet((set) => complementAliases(set, "kana"));
             },
             disabled
           ),
         ]),
-        submenu("sort", "パラメータ一覧の並び替え", [
+        submenu("sort", "原音設定行の並び替え", [
           action(
             "kana-order",
-            "仮名順に並び替え",
+            "50音順に並び替え",
             () => {
               transformOtoSet((set) => sortRows(set, "kana"));
             },
@@ -521,7 +554,7 @@ export const ToolsMenu = () => {
           ),
           action(
             "wav-order",
-            "wavファイル名順に並び替え",
+            "WAVファイル名順に並び替え",
             () => {
               transformOtoSet((set) => sortRows(set, "wav"));
             },
@@ -529,30 +562,30 @@ export const ToolsMenu = () => {
           ),
         ]),
         { kind: "separator", id: "alias-separator" },
-        action("alias", "エイリアス一括変更", panel("alias"), disabled),
+        action("alias", "エイリアスの一括変更…", panel("alias"), disabled),
         submenu("batch", "原音設定の一括処理", [
-          action("query", "検索・置換・抽出", panel("query"), disabled),
+          action("query", "検索・置換・抽出…", panel("query"), disabled),
           action(
             "alias-rules",
-            "規則でエイリアスを複製・置換",
+            "規則によるエイリアスの複製・置換…",
             panel("aliasRules"),
             disabled
           ),
           action(
             "duplicates",
-            "重複エイリアスの整理",
+            "重複エイリアスの整理…",
             panel("duplicates"),
             disabled
           ),
           action(
             "parameters",
-            "先行発声・オーバーラップの調整",
+            "先行発声・オーバーラップの一括調整…",
             panel("parameters"),
             disabled
           ),
           action(
             "conversion",
-            "連続音からCV・VCを追加",
+            "連続音からCV・VCを追加…",
             panel("conversion"),
             disabled
           ),
@@ -561,7 +594,7 @@ export const ToolsMenu = () => {
           ? [
               action(
                 "explorer",
-                "保存フォルダをエクスプローラで開く",
+                "音源フォルダをエクスプローラーで開く",
                 () => {
                   void runTool(async () => {
                     const { workspace } = editorStore.state;
@@ -578,7 +611,7 @@ export const ToolsMenu = () => {
             ]
           : []),
         { kind: "separator", id: "extra-separator" },
-        action("extra", "ファイル・コメント・UST", panel("tools")),
+        action("extra", "ファイル・コメント・UST連携…", panel("tools")),
       ]}
     />
   );

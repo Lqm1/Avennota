@@ -9,10 +9,10 @@ import type { SettingsSection } from "./settings-dialog";
 const sections: { id: SettingsSection; label: string }[] = [
   { id: "inputSettings", label: "操作" },
   { id: "settings", label: "詳細設定" },
-  { id: "timingSettings", label: "発声タイミング" },
-  { id: "playRangeSettings", label: "指定範囲再生" },
-  { id: "focusSettings", label: "フォーカス" },
-  { id: "nextSettings", label: "次のエントリへ移動" },
+  { id: "timingSettings", label: "タイミング試聴" },
+  { id: "playRangeSettings", label: "範囲再生" },
+  { id: "focusSettings", label: "自動フォーカス" },
+  { id: "nextSettings", label: "自動移動" },
 ];
 
 export const StartOptionsDialog = ({ onClose }: { onClose: () => void }) => {

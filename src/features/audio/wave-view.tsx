@@ -1119,7 +1119,7 @@ export const WaveView = (props: WaveViewProps) => {
           showEditorPanel("bpm");
         }}
       >
-        {settings.timeUnit === "seconds" ? "Sec." : "Bar"}
+        {settings.timeUnit === "seconds" ? "秒" : "小節"}
       </button>
       {/* 周波数ラベルがマーカーの上に重なってもつかめるよう、ラベルはポインター操作を透過させる。 */}
       <div

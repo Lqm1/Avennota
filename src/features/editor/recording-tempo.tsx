@@ -136,13 +136,13 @@ export const RecordingTempoField = ({
   if (state.kind === "loading") {
     status = state.message;
   } else if (value.kind === "manual") {
-    status = "手入力された値を使用中";
+    status = "手動入力中";
   } else if (state.kind === "estimated") {
-    status = `自動推定された値です（${state.recordings}件の録音から算出）`;
+    status = `自動推定（${state.recordings}件の録音から算出）`;
   } else if (state.kind === "unavailable") {
-    status = `${unavailableMessages[state.reason]}（既定値 120 を適用中）`;
+    status = `${unavailableMessages[state.reason]}（既定値 120）`;
   } else {
-    status = `収録BPMの推定に失敗しました: ${state.message}`;
+    status = `BPM推定に失敗: ${state.message}`;
   }
   return (
     <div className="flex min-w-0 flex-col gap-1">
